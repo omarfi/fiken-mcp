@@ -1,0 +1,20 @@
+{
+  "name": "@fiken-mcp/cloudflare",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "pnpm run typecheck && wrangler deploy --dry-run --outdir dist",
+    "typecheck": "wrangler types && tsc",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@fiken-mcp/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "wrangler": "^4.149.0"
+  }
+}

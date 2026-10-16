@@ -1,0 +1,27 @@
+{
+  "name": "fiken-mcp",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@12.10.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "lint": "eslint .",
+    "check": "pnpm build && pnpm lint && pnpm test",
+    "gen:types": "pnpm --filter @fiken-mcp/core run gen:types",
+    "spec:update": "curl -fsSL https://api.fiken.no/api/v2/docs/swagger.yaml -o spec/fiken-openapi.yaml && pnpm gen:types",
+    "dev": "pnpm --filter @fiken-mcp/cloudflare run dev",
+    "deploy": "pnpm --filter @fiken-mcp/cloudflare run deploy"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.71.2"
+  }
+}

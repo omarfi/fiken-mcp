@@ -1,0 +1,11 @@
+Fiken MCP
+Copyright 2026 Wollum AS
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This project is not affiliated with, endorsed by or maintained by Fiken AS.
+"Fiken" is a trademark of Fiken AS.
+
+spec/fiken-openapi.yaml is Fiken AS's published API description, retrieved from
+https://api.fiken.no/api/v2/docs/swagger.yaml. It is included unmodified for
+type generation and is not covered by this project's license.
