@@ -1,6 +1,6 @@
 import { createMcpHandler, McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import type { FikenClient } from "./fiken/client.ts";
-import { FikenApiError } from "./fiken/errors.ts";
+import { FikenApiError, FikenTransportError } from "./fiken/errors.ts";
 import { INSTRUCTIONS } from "./instructions.ts";
 import { SERVER_DISPLAY_NAME, SERVER_NAME, SERVER_VERSION } from "./server-info.ts";
 import { TOOLS } from "./tools/index.ts";
@@ -10,7 +10,9 @@ import { errorResult, type AccessLevel, type ToolDefinition } from "./tools/tool
 export interface ToolCallEvent {
   tool: string;
   company: string | undefined;
-  outcome: "ok" | "tool_error" | "fiken_error" | "internal_error";
+  outcome: "ok" | "tool_error" | "fiken_error" | "transport_error" | "internal_error";
+  /** Set for transport errors: why Fiken gave no usable response. */
+  failure?: string | undefined;
   fikenStatus: number | undefined;
   durationMs: number;
 }
@@ -56,8 +58,8 @@ function registerTool(server: McpServer, tool: ToolDefinition, options: FikenSer
     async (input: Record<string, unknown>): Promise<CallToolResult> => {
       const started = Date.now();
       const company = typeof input.company === "string" ? input.company : undefined;
-      const report = (outcome: ToolCallEvent["outcome"], fikenStatus?: number) =>
-        options.onToolCall?.({ tool: tool.name, company, outcome, fikenStatus, durationMs: Date.now() - started });
+      const report = (outcome: ToolCallEvent["outcome"], fikenStatus?: number, failure?: string) =>
+        options.onToolCall?.({ tool: tool.name, company, outcome, fikenStatus, ...(failure ? { failure } : {}), durationMs: Date.now() - started });
 
       try {
         const result = await tool.handler(input, { fiken: options.fiken });
@@ -66,6 +68,10 @@ function registerTool(server: McpServer, tool: ToolDefinition, options: FikenSer
       } catch (error) {
         if (error instanceof FikenApiError) {
           report("fiken_error", error.status);
+          return errorResult(error.message);
+        }
+        if (error instanceof FikenTransportError) {
+          report("transport_error", undefined, error.kind);
           return errorResult(error.message);
         }
         report("internal_error");

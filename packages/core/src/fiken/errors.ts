@@ -3,15 +3,52 @@ export class FikenApiError extends Error {
   readonly status: number;
   readonly fikenMessage: string | undefined;
 
-  constructor(status: number, fikenMessage: string | undefined) {
-    super(messageFor(status, fikenMessage));
+  constructor(status: number, fikenMessage: string | undefined, options: { write?: boolean } = {}) {
+    super(messageFor(status, fikenMessage, options.write ?? false));
     this.name = "FikenApiError";
     this.status = status;
     this.fikenMessage = fikenMessage;
   }
 }
 
-function messageFor(status: number, fikenMessage: string | undefined): string {
+/**
+ * Why a call never got a usable response from Fiken.
+ *
+ * - `outcome_unknown`: a write timed out or the connection failed. Fiken may have executed it.
+ * - `rate_limited`: Fiken answered 429 too often; calls are paused to avoid a ban.
+ * - `unavailable`: a read failed even after a retry.
+ */
+export type FikenFailureKind = "outcome_unknown" | "rate_limited" | "unavailable";
+
+export class FikenTransportError extends Error {
+  readonly kind: FikenFailureKind;
+  readonly retryAfterSeconds: number | undefined;
+
+  constructor(kind: FikenFailureKind, retryAfterSeconds?: number) {
+    super(transportMessage(kind, retryAfterSeconds));
+    this.name = "FikenTransportError";
+    this.kind = kind;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+const CHECK_BEFORE_RETRY =
+  "Den kan ha blitt utført i Fiken. Sjekk med et find_*-verktøy før du prøver igjen, ellers kan den bli registrert to ganger.";
+
+function transportMessage(kind: FikenFailureKind, retryAfterSeconds: number | undefined): string {
+  switch (kind) {
+    case "outcome_unknown":
+      return `Fiken svarte ikke på skrivehandlingen. ${CHECK_BEFORE_RETRY}`;
+    case "rate_limited":
+      return retryAfterSeconds
+        ? `Fiken begrenser antall kall. Koblingen venter ${retryAfterSeconds} sekunder før neste kall. Prøv igjen etterpå.`
+        : "Fiken begrenser antall kall. Vent litt og prøv igjen.";
+    case "unavailable":
+      return "Fiken svarer ikke akkurat nå. Prøv igjen om litt.";
+  }
+}
+
+function messageFor(status: number, fikenMessage: string | undefined, write: boolean): string {
   const detail = fikenMessage ? ` Fiken sier: ${fikenMessage}` : "";
   switch (status) {
     case 400:
@@ -27,9 +64,12 @@ function messageFor(status: number, fikenMessage: string | undefined): string {
     case 429:
       return "Fiken begrenser antall kall akkurat nå. Vent litt og prøv igjen.";
     default:
-      return status >= 500
-        ? `Fiken svarte med en feil (${status}). Prøv igjen senere.`
-        : `Uventet svar fra Fiken (${status}).${detail}`;
+      if (status >= 500) {
+        return write
+          ? `Fiken svarte med en feil (${status}) på skrivehandlingen. ${CHECK_BEFORE_RETRY}`
+          : `Fiken svarte med en feil (${status}). Prøv igjen senere.`;
+      }
+      return `Uventet svar fra Fiken (${status}).${detail}`;
   }
 }
 

@@ -1,5 +1,5 @@
 import type { OAuthResourceAuth } from "@cloudflare/workers-oauth-provider";
-import { FikenClient, handleMcpRequest, type FikenTransport } from "@fiken-mcp/core";
+import { FikenClient, FikenTransportError, handleMcpRequest, type FikenTransport } from "@fiken-mcp/core";
 import { accessFromScopes, type GrantProps } from "./auth/props.ts";
 import { log } from "./log.ts";
 
@@ -22,6 +22,10 @@ export const mcpHandler = {
 function queueTransport(env: Env, props: GrantProps): FikenTransport {
   const queue = env.FIKEN_USER_QUEUE.get(env.FIKEN_USER_QUEUE.idFromName(props.queueKey));
   return {
-    send: (request) => queue.send({ ...request, accessToken: props.fiken.accessToken }),
+    async send(request) {
+      const result = await queue.send({ ...request, accessToken: props.fiken.accessToken });
+      if (!result.ok) throw new FikenTransportError(result.kind, result.retryAfterSeconds);
+      return new Response(result.body, { status: result.status, headers: result.headers });
+    },
   };
 }

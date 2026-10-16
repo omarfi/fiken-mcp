@@ -1,8 +1,16 @@
 export { FikenClient, fikenPath, MAX_PAGE_SIZE, type Company, type Page } from "./fiken/client.ts";
-export { FikenApiError } from "./fiken/errors.ts";
+export { FikenApiError, FikenTransportError, type FikenFailureKind } from "./fiken/errors.ts";
+export {
+  FikenScheduler,
+  type BreakerStore,
+  type RawSend,
+  type SchedulerEvent,
+  type SchedulerOptions,
+} from "./fiken/scheduler.ts";
 export type { FikenHttpRequest, FikenTransport, HttpMethod } from "./fiken/transport.ts";
 export type { components as FikenComponents, operations as FikenOperations, paths as FikenPaths } from "./fiken/types.gen.ts";
 export { INSTRUCTIONS } from "./instructions.ts";
+export { kronerSchema, kronerToOre, oreToKroner } from "./money.ts";
 export { createFikenServer, handleMcpRequest, type FikenServerOptions, type ToolCallEvent } from "./server.ts";
 export { SERVER_DISPLAY_NAME, SERVER_NAME, SERVER_VERSION } from "./server-info.ts";
 export { TOOLS } from "./tools/index.ts";
