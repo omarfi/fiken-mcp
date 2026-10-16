@@ -8,7 +8,7 @@
   "workers_dev": false,
   "preview_urls": false,
   "routes": [{ "pattern": "fiken.mcp.wollums.no", "custom_domain": true }],
-  "kv_namespaces": [{ "binding": "OAUTH_KV" }],
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "2fa7dcca57764232a38d4e304bc3e745" }],
   "durable_objects": {
     "bindings": [{ "name": "FIKEN_USER_QUEUE", "class_name": "FikenUserQueue" }]
   },
