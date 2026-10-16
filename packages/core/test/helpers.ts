@@ -30,7 +30,13 @@ export function json(body: unknown, init: { status?: number; headers?: Record<st
 
 /** Connects a real MCP client to a Fiken server in memory. */
 export async function connect(transport: FikenTransport, options: Partial<FikenServerOptions> = {}): Promise<Client> {
-  const server = createFikenServer({ fiken: new FikenClient(transport), access: "read", ...options });
+  const server = createFikenServer({
+    fiken: new FikenClient(transport),
+    access: "read",
+    // Never the real Enhetsregisteret in tests.
+    lookupOrganization: () => Promise.reject(new Error("Enhetsregisteret is not available in tests")),
+    ...options,
+  });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   await server.connect(serverSide);
   const client = new Client({ name: "test", version: "0.0.0" });

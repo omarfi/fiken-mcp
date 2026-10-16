@@ -1,5 +1,6 @@
 import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/server";
 import type * as z from "zod";
+import type { OrganizationLookup } from "../brreg.ts";
 import type { FikenClient } from "../fiken/client.ts";
 
 /** What the user granted on the consent page. Write implies read. */
@@ -9,6 +10,8 @@ export interface ToolContext {
   fiken: FikenClient;
   /** Today's date in Norway, YYYY-MM-DD. Injected so tests can fix it. */
   today: string;
+  /** Enhetsregisteret. Injected so tests do not call it. */
+  lookupOrganization: OrganizationLookup;
 }
 
 export interface ToolDefinition<Input extends z.ZodObject = z.ZodObject> {
@@ -28,6 +31,9 @@ export function defineTool<Input extends z.ZodObject>(tool: ToolDefinition<Input
 }
 
 export const READ_ONLY: ToolAnnotations = { readOnlyHint: true, openWorldHint: false };
+
+/** Creates or changes something that can be changed back or deleted, and books nothing. */
+export const REVERSIBLE_WRITE: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
 
 /** A successful result: compact JSON for the model, the same object as structured content. */
 export function jsonResult(data: Record<string, unknown>): CallToolResult {

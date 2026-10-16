@@ -360,6 +360,7 @@ Avklar mot testforetaket underveis, og oppdater dette dokumentet med svarene.
   - Spec: ikke noe eget endepunkt. `invoiceResult.sale` er et `saleResult`, så betaling går trolig via `/sales/{saleId}/payments`. Verifiser i testforetaket.
 - [ ] **Vedlegg:** Kan vedlegg lastes opp til utkast via API, og hvilke filtyper og størrelser godtas?
   - Spec: ja, `multipart/form-data` til `…/drafts/{id}/attachments`. Filnavn må slutte på .png, .jpeg, .jpg, .gif eller .pdf. I stedet for fil kan man sende `inboxDocumentId` eller `ehfDocumentId`, da trengs ingen opplasting. Maks størrelse står ikke i spec-en.
+  - Målt 16.10.2026: vedlegg fra innboksen (`inboxDocumentId`) krever en multipart-body, også uten fil. Uten body svarer Fiken `415`. En liten PDF lastes opp i innboksen med `POST /inbox` (multipart). Maks størrelse er ikke målt.
 - [ ] **Låste perioder:** Avviser Fiken bilag og kjøp i en periode der MVA-meldingen er levert?
 - [ ] **Sending i test:** `send_document` testes bare mot egen e-post fra testforetaket.
 - [ ] **Gateway-listen:** Hvilke `GET`-operasjoner skal med i `read_api`, og hvordan trimmes svarene?
@@ -389,6 +390,7 @@ Målt mot testforetaket 16.10.2026 (personlig API-nøkkel, se seksjon 12):
 - **Svarstørrelse:** en faktura inneholder hele kunden, salget, linjene og PDF-lenker. Sammendragene må kuttes.
 - **Personlig API-nøkkel** gir tilgang til alle brukerens foretak, ikke bare testforetaket. Integrasjonstestene låses til `fiken-demo-slott-og-fly-as` og sjekker `testCompany: true`.
 - **Spor etter målingen:** to bilag datert 4.1.2027 i testforetaket (100 kr på 8040 og en motpostering), som går i null mot hverandre.
+- **`PUT` på kontakt** beholder kontaktpersonene når `contactPerson`-listen fra `GET` sendes med uendret. Skrivetestene rydder etter seg (kontakter, produkter, utkast og innboks slettes).
 - **Rekkefølge:** `invoices`, `sales`, `creditNotes`, `journalEntries`, `transactions` og `offers` kommer eldste først og har ingen `sortBy`. `purchases` (`date desc`), `inbox` (`createdDate desc`) og `contacts` kan sorteres. Funnet i test fra claude.ai 16.10.2026.
 
 Funn om Claude som MCP-klient (16.10.2026, kilder: claude.com/docs/connectors/building):

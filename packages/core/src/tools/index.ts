@@ -10,6 +10,10 @@ import { findSales } from "./find-sales.ts";
 import { getReport } from "./get-report.ts";
 import { listCompanies } from "./list-companies.ts";
 import { readApi } from "./read-api.ts";
+import { saveContact } from "./save-contact.ts";
+import { saveInvoiceDraft } from "./save-invoice-draft.ts";
+import { saveProduct } from "./save-product.ts";
+import { savePurchaseDraft, saveSaleDraft } from "./save-sale-purchase-draft.ts";
 import type { ToolDefinition } from "./tool.ts";
 
 export const TOOLS: readonly ToolDefinition[] = [
@@ -25,4 +29,9 @@ export const TOOLS: readonly ToolDefinition[] = [
   getReport,
   exploreApi,
   readApi,
+  saveContact,
+  saveProduct,
+  saveInvoiceDraft,
+  savePurchaseDraft,
+  saveSaleDraft,
 ];

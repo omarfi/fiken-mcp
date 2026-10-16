@@ -1,4 +1,5 @@
 import { createMcpHandler, McpServer, type CallToolResult } from "@modelcontextprotocol/server";
+import { brregLookup, BrregUnavailableError, type OrganizationLookup } from "./brreg.ts";
 import type { FikenClient } from "./fiken/client.ts";
 import { FikenApiError, FikenTransportError } from "./fiken/errors.ts";
 import { INSTRUCTIONS } from "./instructions.ts";
@@ -24,6 +25,8 @@ export interface FikenServerOptions {
   onToolCall?: (event: ToolCallEvent) => void;
   /** Today's date in Norway, YYYY-MM-DD. Defaults to the real date; tests fix it. */
   today?: () => string;
+  /** Enhetsregisteret lookup. Defaults to the public API. */
+  lookupOrganization?: OrganizationLookup;
   /** Called with unexpected errors. The model only gets a generic message. */
   onError?: (error: unknown) => void;
 }
@@ -54,10 +57,12 @@ export function handleMcpRequest(request: Request, options: FikenServerOptions):
   return handler.fetch(request);
 }
 
+const defaultLookup = brregLookup();
+
 function registerTool(server: McpServer, tool: ToolDefinition, options: FikenServerOptions): void {
   server.registerTool(
     tool.name,
-    { title: tool.title, description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },
+    { title: tool.title, description: tool.description, inputSchema: withoutDialect(tool.inputSchema), annotations: tool.annotations },
     async (input: Record<string, unknown>): Promise<CallToolResult> => {
       const started = Date.now();
       const company = typeof input.company === "string" ? input.company : undefined;
@@ -65,11 +70,15 @@ function registerTool(server: McpServer, tool: ToolDefinition, options: FikenSer
         options.onToolCall?.({ tool: tool.name, company, outcome, fikenStatus, ...(failure ? { failure } : {}), durationMs: Date.now() - started });
 
       try {
-        const result = await tool.handler(input, { fiken: options.fiken, today: options.today?.() ?? todayInNorway() });
+        const result = await tool.handler(input, {
+          fiken: options.fiken,
+          today: options.today?.() ?? todayInNorway(),
+          lookupOrganization: options.lookupOrganization ?? defaultLookup,
+        });
         report(result.isError ? "tool_error" : "ok");
         return result;
       } catch (error) {
-        if (error instanceof ToolError) {
+        if (error instanceof ToolError || error instanceof BrregUnavailableError) {
           report("tool_error");
           return errorResult(error.message);
         }
@@ -87,4 +96,26 @@ function registerTool(server: McpServer, tool: ToolDefinition, options: FikenSer
       }
     },
   );
+}
+
+/**
+ * The same zod schema without the root `$schema` URI in the JSON the model reads. About 17 tokens per
+ * tool, and JSON Schema 2020-12 is the default when it is absent. Validation is zod's, unchanged.
+ */
+function withoutDialect(schema: ToolDefinition["inputSchema"]): ToolDefinition["inputSchema"] {
+  const standard = schema["~standard"];
+  const strip = (json: Record<string, unknown>) => {
+    const rest = { ...json };
+    delete rest.$schema;
+    return rest;
+  };
+  return {
+    "~standard": {
+      ...standard,
+      jsonSchema: {
+        input: (options: Parameters<typeof standard.jsonSchema.input>[0]) => strip(standard.jsonSchema.input(options)),
+        output: (options: Parameters<typeof standard.jsonSchema.output>[0]) => strip(standard.jsonSchema.output(options)),
+      },
+    },
+  } as unknown as ToolDefinition["inputSchema"];
 }
