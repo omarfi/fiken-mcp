@@ -96,9 +96,10 @@ Adrian. The rest on request — the details are in the diff.
   `McpServer` per request, serving both the 2026-07-28 protocol and 2025-era
   clients. No `agents` package, no `McpAgent`.
 - **Every call to Fiken goes through `FikenUserQueue`** (one Durable Object per
-  Fiken user, keyed by a hash of the e-mail, because `GET /user` has no ID). At
-  most one concurrent request and 4 per second. The only exception is
-  `GET /user` during sign-in, before the key is known.
+  Fiken user, keyed by an HMAC of the e-mail, because `GET /user` has no ID). At
+  most one concurrent request and 4 per second. The only exceptions are
+  `GET /user` during sign-in, before the key is known, and Fiken's OAuth token endpoint, which is
+  not the API. Fiken token refresh runs in the same Durable Object, single-flight.
 - **Never retry a write automatically on timeout or 5xx.** A 429 means the call
   was not executed, so retrying it is safe.
 - **Amounts: øre to Fiken, kroner in the tools.** All conversion in
@@ -122,6 +123,10 @@ Adrian. The rest on request — the details are in the diff.
   `instructions` to the model.
 - **Write tools are registered only for grants with write access.**
 - Default 20 rows, maximum 100. Typical responses stay under about 3,000 tokens.
+- **24 tools, all definitions under about 7,000 tokens** (a test enforces it). The budget is
+  nearly used up: a new tool or parameter must be paid for by trimming elsewhere.
+- **Destructive tools say in their description that the model must summarize and get a clear
+  yes first** (`CONFIRM_FIRST`), since claude.ai does not pass server instructions.
 
 ## Security
 
@@ -138,6 +143,18 @@ Adrian. The rest on request — the details are in the diff.
   `GET`.
 - **Logs carry metadata only** (tool, company, status, duration), never
   accounting data or tokens.
+
+## Testing
+
+- `pnpm test`: unit tests, no network.
+- `pnpm test:integration`: against the test company `fiken-demo-slott-og-fly-as` with
+  `FIKEN_TEST_TOKEN` from `.dev.vars`. The personal token reaches Adrian's real companies too, so
+  the test transports refuse every other company. Write tests clean up after themselves.
+- `FIKEN_DESTRUCTIVE_TESTS=1 pnpm test:integration` also books in the test company and annuls
+  afterwards; each run leaves one credited invoice. `send_document` is never run against Fiken,
+  since it would send e-mail.
+- After a deploy with new tools, test in a new claude.ai conversation: a running Claude Code
+  session keeps the old tool list.
 
 ## Commands
 

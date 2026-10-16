@@ -1,5 +1,5 @@
 import { checkUpload, FikenClient, MAX_UPLOAD_BYTES, UPLOAD_EXTENSIONS, uploadAttachment, type UploadLink, type UploadTarget } from "@fiken-mcp/core";
-import type { GrantProps } from "./auth/props.ts";
+import type { AccessProps } from "./auth/props.ts";
 import { PUBLIC_ORIGIN } from "./config.ts";
 import { log } from "./log.ts";
 import { queueTransport } from "./mcp.ts";
@@ -28,7 +28,7 @@ const TARGET_NAMES: Record<UploadTarget["type"], string> = {
  * Issues a one-time link: a random 256-bit token. KV holds only the SHA-256 of the token and the
  * record encrypted with AES-GCM under a key derived from the token, so KV alone reveals nothing.
  */
-export async function issueUploadLink(env: Env, props: GrantProps, target: UploadTarget): Promise<UploadLink> {
+export async function issueUploadLink(env: Env, props: AccessProps, target: UploadTarget): Promise<UploadLink> {
   const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
   const expiresAt = Date.now() + TTL_SECONDS * 1000;
   const record: UploadRecord = { queueKey: props.queueKey, accessToken: props.fiken.accessToken, target, expiresAt };
@@ -70,7 +70,9 @@ export async function receiveUpload(env: Env, token: string, request: Request): 
   const { id } = await derive(token);
   await env.OAUTH_KV.delete(KEY_PREFIX + id);
 
-  const length = Number(request.headers.get("content-length") ?? 0);
+  // Without Content-Length a chunked body would be buffered whole before its size is known.
+  const length = Number(request.headers.get("content-length") ?? Number.NaN);
+  if (!Number.isFinite(length)) return messagePage(411, "Opplastingen mangler lengde", "Prøv igjen fra en vanlig nettleser. Be om en ny lenke i samtalen.");
   if (length > MAX_UPLOAD_BYTES + 64 * 1024) return messagePage(413, "Filen er for stor", "Filen kan være maks 10 MB. Be om en ny lenke i samtalen.");
 
   const form = await request.formData();
@@ -80,7 +82,7 @@ export async function receiveUpload(env: Env, token: string, request: Request): 
   const problem = checkUpload(upload);
   if (problem) return messagePage(400, "Filen kan ikke lastes opp", `${problem} Be om en ny lenke i samtalen.`);
 
-  const props = { queueKey: record.queueKey, fiken: { accessToken: record.accessToken, refreshToken: "", expiresAt: 0 } } satisfies GrantProps;
+  const props: AccessProps = { queueKey: record.queueKey, fiken: { accessToken: record.accessToken, expiresAt: 0 } };
   try {
     await uploadAttachment(new FikenClient(queueTransport(env, props)), record.target, upload);
   } catch (error) {

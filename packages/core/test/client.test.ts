@@ -31,6 +31,17 @@ describe("FikenClient", () => {
     expect(transport.requests).toHaveLength(0);
   });
 
+  it("refuses dot segments, which URL parsing would turn into a different path", async () => {
+    const transport = new MockTransport(() => json({}));
+    const fiken = new FikenClient(transport);
+    for (const value of [".", ".."]) {
+      await expect(fiken.api.GET("/companies/{companySlug}/accounts/{accountCode}", { params: { path: { companySlug: "x", accountCode: value } } })).rejects.toThrow(
+        "Invalid path parameter",
+      );
+    }
+    expect(transport.requests).toHaveLength(0);
+  });
+
   it("sends JSON bodies and returns the created ID from Location", async () => {
     const transport = new MockTransport(
       () =>

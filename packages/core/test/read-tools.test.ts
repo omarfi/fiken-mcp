@@ -43,6 +43,17 @@ describe("company resolution", () => {
   });
 });
 
+describe("company slug", () => {
+  it("refuses a slug that is not one", async () => {
+    for (const company of [".", "..", "a/b", "A B"]) {
+      const transport = routes({});
+      const result = await run(transport, "find_contacts", { company });
+      expect(result.isError, company).toBe(true);
+      expect(transport.requests, company).toHaveLength(0);
+    }
+  });
+});
+
 describe("find_contacts", () => {
   it("maps role and hides inactive contacts by default", async () => {
     const transport = routes({ "/contacts": [] });

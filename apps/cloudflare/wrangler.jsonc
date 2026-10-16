@@ -14,7 +14,10 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FikenUserQueue"] }],
   "observability": {
-    "enabled": true
+    "enabled": true,
+    // Our own log lines only. Invocation logs would store request URLs, which carry upload tokens
+    // and OAuth codes.
+    "logs": { "enabled": true, "invocation_logs": false }
   }
   // Secrets: FIKEN_CLIENT_ID, FIKEN_CLIENT_SECRET (wrangler secret put).
 }

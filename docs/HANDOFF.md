@@ -54,6 +54,7 @@ Bygget:
 - [x] M5 Reversible skriveverktøy (16.10.2026): `save_contact` (Enhetsregisteret, duplikatsjekk), `save_product`, `save_invoice_draft`, `save_purchase_draft`, `save_sale_draft`. 6 skrivende integrasjonstester rydder etter seg. Verifisert fra claude.ai: duplikat stoppet, kjøp koblet til leverandør via org.nr., netto regnet fra brutto, felter beholdt ved endring.
 - [x] M6 Destruktive verktøy og opplastingslenke (16.10.2026): `finalize_draft`, `delete_draft`, `register_payment`, `create_journal_entry`, `credit_invoice`, `send_document`, `create_upload_link` med opplastingsside. Kjøps-, salgs-, bilags- og fakturaflyt bokført og annullert i testforetaket. `send_document` er bare enhetstestet, siden en ekte test sender e-post.
 - [x] M7 Avledede rapporter (16.10.2026): `get_report` `vat` (per termin etter foretakets MVA-type, uten MVA-oppgjør og annullerte bilag), `payroll` (per måned, påløpt og betalt trekk og arbeidsgiveravgift), `bank_check` (saldo mot bank, mulige duplikater, åpne poster med samme beløp). Verifisert mot saldoene i testforetaket. Sammenligning med Fikens egen MVA-rapport i webappen gjenstår for Adrian, siden den ikke finnes i API-et.
+- [x] M8 Herding (16.10.2026): tokenmåling, uavhengig sikkerhetsgjennomgang med rettelser, README på norsk, varsel ved endret spec, integrasjonstester i CI når `FIKEN_TEST_TOKEN` er satt som secret. Se «Sikkerhetsgjennomgang» under.
 
 ## 3. Låste beslutninger
 
@@ -211,6 +212,39 @@ Samtykkesiden lar brukeren velge «Kun lesing» eller «Lesing og skriving». Va
 - Alle path-parametere `encodeURIComponent`-es. Gateway-kall bygges bare fra allowlisten, aldri fra fri URL.
 - Logg metadata (verktøy, foretak, status, varighet), aldri regnskapsdata eller tokens.
 - Ingen hemmeligheter i repoet. Bruk `wrangler secret put` og `.dev.vars` (gitignored).
+
+
+### Sikkerhetsgjennomgang (M8, 16.10.2026)
+
+Gjort av en uavhengig agent mot koden, punkt for punkt mot kravene over. Alle MUST-krav: oppfylt.
+
+| Krav | Status | Hvor |
+| --- | --- | --- |
+| Samtykke per `client_id` før videresending til Fiken | Oppfylt, vises ved hver innlogging | `auth/handlers.ts` |
+| Samtykkesiden viser klientnavn, domene, tilgang og redirect URI | Oppfylt (full adresse lagt til) | `ui/consent.ts` |
+| CSRF, `frame-ancestors 'none'`, `X-Frame-Options: DENY` | Oppfylt | bibliotekets samtykkehjelpere, `ui/page.ts` |
+| Cookies `__Host-`, `Secure`, `HttpOnly`, `SameSite=Lax`, bundet til klient | Oppfylt | `workers-oauth-provider` |
+| Eksakt `redirect_uri` | Oppfylt (loopback uten port, RFC 8252) | `workers-oauth-provider` |
+| `state` først etter samtykke, engangs, 10 min | Oppfylt | `beginUpstream`/`finishUpstream` |
+| Ingen token passthrough | Oppfylt, tokens er bundet til ressursen | `index.ts` |
+
+Rettet etter gjennomgangen:
+
+- **Fornyelse av Fiken-token** kjøres nå i brukerens `FikenUserQueue` med «single flight», så samtidige fornyelser deler ett kall og et rotert refresh token aldri sendes to ganger. Bare Fikens `invalid_grant` trekker tilbake grant-en. Feil klienthemmelighet eller nedetid gir `temporarily_unavailable`, så en feil deploy ikke logger ut alle.
+- **`/token`** avviser klient-ID-er utenfor allowlisten før biblioteket henter metadata (fra skjema, Basic-header eller `client_assertion`).
+- **Access tokens** bærer ikke lenger Fikens refresh token. Det ligger bare i grant-en.
+- **Sti-parametere** `.` og `..` avvises, og foretaks-slug valideres (`^[a-z0-9][a-z0-9_-]*$`).
+- **Kønøkkelen** er en HMAC av e-posten med klienthemmeligheten, ikke en gjettbar SHA-256.
+- **Logging:** feil ved innlogging logges med navn, ikke tekst. Invocation-logger er slått av, siden de lagrer URL-er med opplastingstoken og OAuth-kode.
+- **Opplasting** krever `Content-Length`.
+- **Kall med token** følger ikke omdirigeringer (`redirect: "manual"`).
+
+Kjent og akseptert:
+
+- Engangsbruk av opplastingslenker er hent-og-slett i KV, ikke atomisk. Krever lenken.
+- Fiken-tokens trekkes ikke tilbake hos Fiken når en grant hos oss utløper eller trekkes tilbake. Brukeren kan gjøre det i Fiken.
+- Kall til Fikens OAuth-endepunkt (`fiken.no/oauth/token`) går utenom køen. Grensene gjelder API-et (`api.fiken.no`).
+- GitHub Actions er låst på tag, ikke SHA.
 
 ## 6. Fiken-klienten og køen
 

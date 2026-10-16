@@ -76,9 +76,11 @@ export async function finishSignIn(request: Request, env: Env): Promise<Response
     try {
       const fiken = await exchangeCode(env, code, state, upstream.data.verifier);
       const user = await fetchUser(fiken.accessToken);
-      props = { queueKey: await queueKeyFor(user.email), fiken };
+      props = { queueKey: await queueKeyFor(user.email, env.FIKEN_CLIENT_SECRET), fiken };
     } catch (error) {
-      log("fiken_sign_in_failed", { clientId: upstream.request.clientId, error: String(error) });
+      // Our own messages only: a parse error could quote the response body, which holds tokens.
+      const reason = error instanceof Error && error.message.startsWith("Fiken ") ? error.message : error instanceof Error ? error.name : "unknown";
+      log("fiken_sign_in_failed", { clientId: upstream.request.clientId, error: reason });
       return redirect(authorizationErrorRedirect(upstream.request, "server_error", "Innloggingen hos Fiken feilet. Prøv igjen."));
     }
 

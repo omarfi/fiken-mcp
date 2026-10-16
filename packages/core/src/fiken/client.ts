@@ -78,7 +78,7 @@ export function createdId(response: Response): string | undefined {
 
 /**
  * openapi-fetch leaves a missing path parameter in the URL as `{name}`. Refuse the call instead, and
- * refuse empty values, which would collapse `/contacts/{id}` into `/contacts/`.
+ * refuse empty values and dot segments, which would change the path.
  */
 const requirePathParams: Middleware = {
   onRequest({ schemaPath, params }) {
@@ -87,6 +87,8 @@ const requirePathParams: Middleware = {
       if (value === undefined || value === null || value === "") {
         throw new Error(`Missing path parameter: ${name ?? "?"}`);
       }
+      // encodeURIComponent leaves "." and "..", and URL parsing then walks up the path.
+      if (value === "." || value === "..") throw new Error(`Invalid path parameter: ${name ?? "?"}`);
     }
     return undefined;
   },

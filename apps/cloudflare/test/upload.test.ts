@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { GrantProps } from "../src/auth/props.ts";
+import type { AccessProps } from "../src/auth/props.ts";
 import type { QueuedRequest, QueueResult } from "../src/queue.ts";
 import { issueUploadLink, receiveUpload, showUploadPage } from "../src/upload.ts";
 
@@ -28,17 +28,22 @@ function fakeEnv() {
   return { env, kv, sent };
 }
 
-const props: GrantProps = { queueKey: "user-hash", fiken: { accessToken: SECRET_TOKEN, refreshToken: "r", expiresAt: 0 } };
+const props: AccessProps = { queueKey: "user-hash", fiken: { accessToken: SECRET_TOKEN, expiresAt: 0 } };
 const target = { companySlug: "test-as", type: "purchase_draft" as const, id: 8 };
 
 function tokenOf(url: string): string {
   return url.split("/").at(-1) ?? "";
 }
 
-function uploadRequest(token: string, name = "kvittering.pdf"): Request {
+/** A form post as a browser sends it, with Content-Length. */
+async function uploadRequest(token: string, name = "kvittering.pdf", withLength = true): Promise<Request> {
   const form = new FormData();
   form.set("file", new File([new TextEncoder().encode("%PDF-1.4")], name, { type: "application/pdf" }));
-  return new Request(`https://fiken.mcp.wollums.no/upload/${token}`, { method: "POST", body: form });
+  const encoded = new Request("https://x.invalid", { method: "POST", body: form });
+  const body = await encoded.arrayBuffer();
+  const headers: Record<string, string> = { "content-type": encoded.headers.get("content-type") ?? "" };
+  if (withLength) headers["content-length"] = String(body.byteLength);
+  return new Request(`https://fiken.mcp.wollums.no/upload/${token}`, { method: "POST", body, headers });
 }
 
 describe("upload links", () => {
@@ -62,12 +67,12 @@ describe("upload links", () => {
     expect(page.headers.get("content-security-policy")).toContain("default-src 'none'");
     expect(await page.text()).toContain("kjøpsutkast 8");
 
-    const done = await receiveUpload(env, token, uploadRequest(token));
+    const done = await receiveUpload(env, token, await uploadRequest(token));
     expect(done.status).toBe(200);
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({ method: "POST", path: "/companies/test-as/purchases/drafts/8/attachments", accessToken: SECRET_TOKEN });
 
-    expect((await receiveUpload(env, token, uploadRequest(token))).status).toBe(410);
+    expect((await receiveUpload(env, token, await uploadRequest(token))).status).toBe(410);
     expect((await showUploadPage(env, token)).status).toBe(410);
     expect(sent).toHaveLength(1);
   });
@@ -78,8 +83,16 @@ describe("upload links", () => {
     expect((await showUploadPage(env, "../../etc")).status).toBe(410);
 
     const token = tokenOf((await issueUploadLink(env, props, target)).url);
-    const refused = await receiveUpload(env, token, uploadRequest(token, "program.exe"));
+    const refused = await receiveUpload(env, token, await uploadRequest(token, "program.exe"));
     expect(refused.status).toBe(400);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("refuses a body without Content-Length, which would otherwise be buffered whole", async () => {
+    const { env, sent } = fakeEnv();
+    const token = tokenOf((await issueUploadLink(env, props, target)).url);
+    const chunked = await receiveUpload(env, token, await uploadRequest(token, "kvittering.pdf", false));
+    expect(chunked.status).toBe(411);
     expect(sent).toHaveLength(0);
   });
 });

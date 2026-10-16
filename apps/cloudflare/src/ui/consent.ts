@@ -18,6 +18,7 @@ export function consentPage(details: ConsentDescription, handle: string, headers
   <div><dt>App</dt><dd>${name}</dd></div>
   ${domain ? `<div><dt>Publisert av</dt><dd>${domain}</dd></div>` : ""}
   <div><dt>Tilgangen sendes til</dt><dd>${redirectHost}</dd></div>
+  <div><dt>Adresse</dt><dd>${escapeHtml(details.redirectUri)}</dd></div>
 </dl>
 ${
   details.redirectIsLoopback

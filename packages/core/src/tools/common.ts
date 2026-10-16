@@ -12,7 +12,12 @@ export class ToolError extends Error {
 
 export const DEFAULT_LIMIT = 20;
 
-export const companyInput = z.string().min(1).optional().describe("Slug fra list_companies. Utelates ved ett foretak.");
+export const companyInput = z
+  .string()
+  // Fiken slugs are lowercase letters, digits and dashes (measured); anything else could alter a path.
+  .refine((value) => /^[a-z0-9][a-z0-9_-]*$/.test(value) && value.length <= 100, "Ugyldig foretak. Bruk slug fra list_companies.")
+  .optional()
+  .describe("Slug fra list_companies. Utelates ved ett foretak.");
 
 export const limitInput = z.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_LIMIT).describe("Standard 20, maks 100");
 export const pageInput = z.number().int().min(0).max(10_000).default(0).describe("Fra 0");

@@ -2,7 +2,8 @@ import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
 import { SERVER_DISPLAY_NAME } from "@fiken-mcp/core";
 import { finishSignIn, showConsent, submitConsent } from "./auth/handlers.ts";
 import { tokenExchangeCallback } from "./auth/token-exchange.ts";
-import { MCP_RESOURCE, SCOPE_READ, SCOPE_WRITE } from "./config.ts";
+import { tokenClientId } from "./auth/token-guard.ts";
+import { isAllowedClient, MCP_RESOURCE, SCOPE_READ, SCOPE_WRITE } from "./config.ts";
 import { log } from "./log.ts";
 import { mcpHandler } from "./mcp.ts";
 import { receiveUpload, showUploadPage } from "./upload.ts";
@@ -42,7 +43,7 @@ function landingPage(): Response {
   });
 }
 
-export default new OAuthProvider<Env>({
+const provider = new OAuthProvider<Env>({
   apiRoute: "/mcp",
   apiHandler: mcpHandler,
   defaultHandler: appHandler,
@@ -59,3 +60,20 @@ export default new OAuthProvider<Env>({
     log("oauth_error", { code, status, category: internal.category, reason: internal.reason });
   },
 });
+
+/**
+ * The token endpoint belongs to the library, which would fetch the metadata document of any HTTPS
+ * client_id before refusing it. Refuse clients outside the allowlist here first, as /authorize does.
+ */
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    if (request.method === "POST" && new URL(request.url).pathname === "/token") {
+      const clientId = await tokenClientId(request.clone());
+      if (clientId !== undefined && !isAllowedClient(clientId)) {
+        log("client_not_allowed", { clientId: clientId.slice(0, 200), endpoint: "token" });
+        return Response.json({ error: "invalid_client", error_description: "Client not allowed" }, { status: 401 });
+      }
+    }
+    return provider.fetch(request, env, ctx);
+  },
+} satisfies ExportedHandler<Env>;

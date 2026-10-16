@@ -1,6 +1,6 @@
-import { GrantType, type TokenExchangeCallbackOptions, type TokenExchangeCallbackResult } from "@cloudflare/workers-oauth-provider";
-import { refreshTokens } from "./fiken-oauth.ts";
-import type { FikenTokens, GrantProps } from "./props.ts";
+import { GrantType, OAuthError, type TokenExchangeCallbackOptions, type TokenExchangeCallbackResult } from "@cloudflare/workers-oauth-provider";
+import { log } from "../log.ts";
+import { accessProps, type FikenTokens, type GrantProps } from "./props.ts";
 
 const MAX_ACCESS_TOKEN_TTL = 60 * 60;
 /** Our access token must expire this long before Fiken's, so a tool call never meets an expired Fiken token. */
@@ -18,18 +18,31 @@ export async function tokenExchangeCallback(
   const props = options.props as GrantProps;
 
   if (options.grantType === GrantType.AUTHORIZATION_CODE) {
-    return { accessTokenTTL: accessTokenTtl(props.fiken) };
+    return { accessTokenProps: accessProps(props), accessTokenTTL: accessTokenTtl(props.fiken) };
   }
 
   if (options.grantType === GrantType.REFRESH_TOKEN) {
     if (secondsLeft(props.fiken) > FIKEN_REFRESH_THRESHOLD) {
-      return { accessTokenTTL: accessTokenTtl(props.fiken) };
+      return { accessTokenProps: accessProps(props), accessTokenTTL: accessTokenTtl(props.fiken) };
     }
-    const fiken = await refreshTokens(options.env, props.fiken);
-    return { newProps: { ...props, fiken } satisfies GrantProps, accessTokenTTL: accessTokenTtl(fiken) };
+    // In the user's FikenUserQueue, so concurrent refreshes share one call to Fiken (refresh tokens may rotate).
+    const queue = options.env.FIKEN_USER_QUEUE.get(options.env.FIKEN_USER_QUEUE.idFromName(props.queueKey));
+    const result = await queue.refreshFiken(props.fiken.refreshToken);
+    if (!result.ok) {
+      log("fiken_refresh_failed", { error: result.error, reason: result.reason });
+      if (result.error === "invalid_grant") throw new OAuthError("invalid_grant", { description: "Fiken access was revoked or has expired" });
+      throw new OAuthError("temporarily_unavailable", {
+        description: "Fiken is unavailable",
+        statusCode: 503,
+        headers: { "Retry-After": result.retryAfter ?? "30" },
+      });
+    }
+    const newProps: GrantProps = { ...props, fiken: result.tokens };
+    return { newProps, accessTokenProps: accessProps(newProps), accessTokenTTL: accessTokenTtl(result.tokens) };
   }
 
-  return undefined;
+  // Token exchange is not enabled; never allow it across clients should it ever be.
+  return { allowCrossClientExchange: false };
 }
 
 function secondsLeft(tokens: FikenTokens): number {

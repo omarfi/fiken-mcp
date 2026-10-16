@@ -1,13 +1,13 @@
 import type { OAuthResourceAuth } from "@cloudflare/workers-oauth-provider";
 import { FikenClient, FikenTransportError, handleMcpRequest, type FikenTransport } from "@fiken-mcp/core";
-import { accessFromScopes, type GrantProps } from "./auth/props.ts";
+import { accessFromScopes, type AccessProps } from "./auth/props.ts";
 import { log } from "./log.ts";
 import { issueUploadLink } from "./upload.ts";
 
 /** Protected /mcp route. OAuthProvider has validated our access token and decrypted the grant props. */
 export const mcpHandler = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const { props, auth } = ctx as ExecutionContext<GrantProps> & { auth?: OAuthResourceAuth };
+    const { props, auth } = ctx as ExecutionContext<AccessProps> & { auth?: OAuthResourceAuth };
     const access = accessFromScopes(auth?.scope);
     return handleMcpRequest(request, {
       fiken: new FikenClient(queueTransport(env, props)),
@@ -21,7 +21,7 @@ export const mcpHandler = {
 };
 
 /** Sends every Fiken call through this user's FikenUserQueue. */
-export function queueTransport(env: Env, props: GrantProps): FikenTransport {
+export function queueTransport(env: Env, props: AccessProps): FikenTransport {
   const queue = env.FIKEN_USER_QUEUE.get(env.FIKEN_USER_QUEUE.idFromName(props.queueKey));
   return {
     async send(request) {

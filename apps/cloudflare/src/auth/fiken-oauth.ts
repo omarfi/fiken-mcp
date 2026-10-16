@@ -1,4 +1,3 @@
-import { OAuthError } from "@cloudflare/workers-oauth-provider";
 import { FIKEN_API_BASE, FIKEN_AUTHORIZE_URL, FIKEN_REDIRECT_URI, FIKEN_TOKEN_URL } from "../config.ts";
 import type { FikenTokens } from "./props.ts";
 
@@ -41,30 +40,35 @@ export async function exchangeCode(env: Env, code: string, state: string, verifi
   return toTokens(await response.json(), undefined);
 }
 
+/** Plain data, so it crosses the RPC boundary from FikenUserQueue. */
+export type RefreshResult =
+  | { ok: true; tokens: FikenTokens }
+  | { ok: false; error: "invalid_grant" | "temporarily_unavailable"; reason: string; retryAfter?: string };
+
 /**
- * Refreshes Fiken tokens from inside `tokenExchangeCallback`. Throws `OAuthError` so the provider
- * answers the MCP client correctly: `invalid_grant` revokes our grant (the user must sign in
- * again), `temporarily_unavailable` keeps it for a retry.
+ * Refreshes Fiken tokens. Only Fiken's own `invalid_grant` means the user's access is gone; anything
+ * else (our client credentials rejected, Fiken down) must not revoke the user's grant, so a wrong
+ * client secret in a deploy cannot sign every user out.
  */
-export async function refreshTokens(env: Env, tokens: FikenTokens): Promise<FikenTokens> {
+export async function refreshTokens(env: Env, refreshToken: string): Promise<RefreshResult> {
   let response: Response;
   try {
-    response = await tokenRequest(env, { grant_type: "refresh_token", refresh_token: tokens.refreshToken });
+    response = await tokenRequest(env, { grant_type: "refresh_token", refresh_token: refreshToken });
   } catch {
-    throw new OAuthError("temporarily_unavailable", { description: "Fiken is not responding", statusCode: 503 });
+    return { ok: false, error: "temporarily_unavailable", reason: "no_response" };
   }
-  if (response.status === 400 || response.status === 401) {
-    throw new OAuthError("invalid_grant", { description: "Fiken access was revoked or has expired" });
+  if (response.ok) {
+    // Fiken may rotate the refresh token. Keep the old one only if it sent none.
+    return { ok: true, tokens: toTokens(await response.json(), refreshToken) };
   }
-  if (!response.ok) {
-    throw new OAuthError("temporarily_unavailable", {
-      description: "Fiken is unavailable",
-      statusCode: 503,
-      headers: { "Retry-After": response.headers.get("retry-after") ?? "30" },
-    });
-  }
-  // Fiken may rotate the refresh token. Keep the old one only if it sent none.
-  return toTokens(await response.json(), tokens.refreshToken);
+  const body = await response.json<{ error?: string }>().catch(() => ({ error: undefined }));
+  if (body.error === "invalid_grant") return { ok: false, error: "invalid_grant", reason: "invalid_grant" };
+  return {
+    ok: false,
+    error: "temporarily_unavailable",
+    reason: body.error ?? `status_${response.status}`,
+    retryAfter: response.headers.get("retry-after") ?? "30",
+  };
 }
 
 export interface FikenUser {
@@ -76,6 +80,7 @@ export interface FikenUser {
 export async function fetchUser(accessToken: string): Promise<FikenUser> {
   const response = await fetch(`${FIKEN_API_BASE}/user`, {
     headers: { authorization: `Bearer ${accessToken}`, accept: "application/json", "x-request-id": crypto.randomUUID() },
+    redirect: "manual",
     signal: AbortSignal.timeout(FIKEN_TIMEOUT_MS),
   });
   if (!response.ok) throw new Error(`Fiken /user failed with ${response.status}`);
@@ -93,6 +98,7 @@ function tokenRequest(env: Env, params: Record<string, string>): Promise<Respons
       accept: "application/json",
     },
     body: new URLSearchParams(params).toString(),
+    redirect: "manual",
     signal: AbortSignal.timeout(FIKEN_TIMEOUT_MS),
   });
 }

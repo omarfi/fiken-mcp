@@ -9,7 +9,7 @@ export const sendDocument = defineTool({
   access: "write",
   title: "Send faktura, kreditnota eller tilbud",
   description:
-    `Sender faktura, kreditnota eller tilbud til kunden. Kan ikke angres. auto: Fiken velger EHF eller e-post. ${CONFIRM_FIRST}`,
+    `Sender faktura, kreditnota eller tilbud til kunden. Kan ikke angres. auto: Fiken velger EHF eller e-post. Bekreft mottaker. ${CONFIRM_FIRST}`,
   inputSchema: z.object({
     company: companyInput,
     type: z.enum(["invoice", "credit_note", "offer"]),
