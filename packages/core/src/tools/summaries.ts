@@ -179,6 +179,7 @@ export function draftSummary(draft: S["draftResult"]) {
     paid: draft.paid,
     net: kr(net),
     gross: kr(gross),
+    currency: draft.currency === "NOK" ? undefined : draft.currency,
   });
 }
 
@@ -278,6 +279,7 @@ export function paymentSummary(payment: S["payment"]) {
     account: payment.account,
     fee: kr(payment.fee) || undefined,
     currency: payment.currency === "NOK" ? undefined : payment.currency,
+    amountInNok: payment.currency && payment.currency !== "NOK" ? kr(payment.amountInNok) : undefined,
   });
 }
 

@@ -107,6 +107,40 @@ describe.skipIf(!token)("write tools against the test company", () => {
     expect(attached.draft.attachments).toHaveLength(1);
   });
 
+  it("save_purchase_draft keeps the bank's NOK amount on a foreign-currency payment until the payment changes", async () => {
+    // The tool cannot make a USD draft, so this one is made directly, as in Fiken.
+    const body = {
+      cash: true,
+      paid: true,
+      invoiceIssueDate: "2026-10-15",
+      currency: "USD",
+      lines: [{ text: MARK, vatType: "HIGH_FOREIGN_SERVICE_DEDUCTIBLE", incomeAccount: "6800", net: 800, gross: 800 }],
+      payments: [{ date: "2026-10-15", account: "1920:10001", amount: 800, currency: "USD", amountInNok: 7700 }],
+    };
+    const posted = await write().send({
+      method: "POST",
+      path: `${PREFIX}/purchases/drafts`,
+      headers: { "content-type": "application/json" },
+      body: new TextEncoder().encode(JSON.stringify(body)).buffer,
+    });
+    expect(posted.status).toBe(201);
+    const id = Number(posted.headers.get("location")?.split("/").at(-1));
+    cleanup.push(`/purchases/drafts/${id}`);
+    type Payment = { date: string; amount: number; amountInNok?: number; currency?: string };
+
+    const listed = await call<{ draft: Row }>(client, "save_purchase_draft", {
+      id,
+      lines: [{ description: `${MARK} 2`, gross: 8, vat_type: "HIGH_FOREIGN_SERVICE_DEDUCTIBLE", account: "6800" }],
+    });
+    expect(listed.draft).toMatchObject({ gross: 8, currency: "USD", payments: [{ amount: 8, currency: "USD", amountInNok: 77 }] });
+    const kept = await raw<{ payments: Payment[] }>(`/purchases/drafts/${id}`);
+    expect(kept.payments).toEqual([expect.objectContaining({ date: "2026-10-15", amount: 800, amountInNok: 7700, currency: "USD" })]);
+
+    await call(client, "save_purchase_draft", { id, date: "2026-10-14" });
+    const moved = await raw<{ payments: Payment[] }>(`/purchases/drafts/${id}`);
+    expect(moved.payments).toEqual([expect.objectContaining({ date: "2026-10-14", amount: 800, currency: "USD", amountInNok: expect.any(Number) })]);
+  });
+
   it("save_sale_draft makes a paid cash sale", async () => {
     const created = await call<{ draft: Row }>(client, "save_sale_draft", {
       date: "2026-10-16",

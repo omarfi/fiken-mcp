@@ -206,6 +206,36 @@ describe("save_purchase_draft", () => {
       lines: [{ text: "Ny", gross: 25000, net: 20000 }],
     });
   });
+
+  describe("in a foreign currency", () => {
+    const usdPayment = { date: "2026-10-15", account: "1920:10001", amount: 800, amountInNok: 7603, currency: "USD" };
+    const usdDraft = {
+      draftId: 9,
+      invoiceIssueDate: "2026-10-15",
+      currency: "USD",
+      cash: true,
+      paid: true,
+      lines: [{ text: "Tailscale", vatType: "HIGH_FOREIGN_SERVICE_DEDUCTIBLE", incomeAccount: "6553", net: 800, gross: 800 }],
+      payments: [{ paymentId: 1, ...usdPayment }],
+    };
+    const routes = { [`GET ${BASE}/purchases/drafts/9`]: usdDraft, [`PUT ${BASE}/purchases/drafts/9`]: ok };
+
+    it("keeps an unchanged payment as it was, with the NOK amount the bank charged", async () => {
+      const { transport, bodies } = fiken(routes);
+      const result = await run(transport, "save_purchase_draft", {
+        id: 9,
+        lines: [{ description: "Tailscale Standard", gross: 8, vat_type: "HIGH_FOREIGN_SERVICE_DEDUCTIBLE", account: "6553" }],
+      });
+      expect(bodies("PUT", `${BASE}/purchases/drafts/9`)[0]).toMatchObject({ currency: "USD", payments: [usdPayment] });
+      expect(result.structuredContent).toMatchObject({ draft: { gross: 8, currency: "USD", payments: [{ amount: 8, currency: "USD", amountInNok: 76.03 }] } });
+    });
+
+    it("gives a changed payment the draft's currency, so Fiken converts at the new date", async () => {
+      const { transport, bodies } = fiken(routes);
+      await run(transport, "save_purchase_draft", { id: 9, date: "2026-10-14" });
+      expect(bodies("PUT", `${BASE}/purchases/drafts/9`)[0]?.payments).toEqual([{ date: "2026-10-14", account: "1920:10001", amount: 800, currency: "USD" }]);
+    });
+  });
 });
 
 describe("save_sale_draft", () => {

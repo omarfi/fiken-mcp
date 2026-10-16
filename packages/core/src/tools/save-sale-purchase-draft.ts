@@ -9,6 +9,7 @@ import { accountInput, draftLine, draftLinesInput, newId, resolveCounterparty } 
 
 type DraftRequest = components["schemas"]["draftRequest"];
 type DraftResult = components["schemas"]["draftResult"];
+type Payment = components["schemas"]["payment"];
 type Kind = "purchase" | "sale";
 
 const NEXT = "Utkastet er ikke bokført. Bokfør med finalize_draft når brukeren har bekreftet.";
@@ -105,7 +106,7 @@ async function saveDraft(fiken: FikenClient, kind: Kind, input: DraftInput) {
     cash,
     paid,
     lines,
-    payments: paid && paymentAccount ? [{ date, account: paymentAccount, amount: total }] : [],
+    payments: paid && paymentAccount ? [draftPayment(base, { date, account: paymentAccount, amount: total })] : [],
   };
 
   let draftId: number;
@@ -129,6 +130,17 @@ async function saveDraft(fiken: FikenClient, kind: Kind, input: DraftInput) {
   return jsonResult({ created: existing === undefined, draft: draftDetail(saved), note: NEXT });
 }
 
+/**
+ * The draft's one payment. An unchanged payment is sent back as it was, since a PUT without
+ * amountInNok drops the NOK amount the bank actually charged (measured). A changed one gets the
+ * draft's currency, and Fiken computes amountInNok at that date's rate (measured).
+ */
+function draftPayment(base: DraftRequest | undefined, payment: Payment): Payment {
+  const previous = base?.payments?.[0];
+  if (previous?.date === payment.date && previous.account === payment.account && previous.amount === payment.amount) return previous;
+  return base?.currency && base.currency !== "NOK" ? { ...payment, currency: base.currency } : payment;
+}
+
 /** Back from a draft as Fiken shows it to the request it takes, since PUT replaces everything (measured). */
 function toRequest(draft: DraftResult): DraftRequest {
   return {
@@ -143,7 +155,9 @@ function toRequest(draft: DraftResult): DraftRequest {
     }),
     cash: draft.cash ?? false,
     paid: draft.paid ?? false,
-    payments: draft.payments?.map((payment) => compact({ date: payment.date, account: payment.account, amount: payment.amount, currency: payment.currency })),
+    payments: draft.payments?.map((payment) =>
+      compact({ date: payment.date, account: payment.account, amount: payment.amount, amountInNok: payment.amountInNok, currency: payment.currency, fee: payment.fee }),
+    ),
     lines: (draft.lines ?? []).map((line) =>
       compact({ text: line.text, vatType: line.vatType, incomeAccount: line.incomeAccount, net: line.net, gross: line.gross, projectId: line.project?.projectId }),
     ) as DraftRequest["lines"],
