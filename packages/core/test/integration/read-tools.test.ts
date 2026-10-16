@@ -66,6 +66,20 @@ describe.skipIf(!token)("read tools against the test company", () => {
     expect(Array.isArray(invoice.lines)).toBe(true);
   });
 
+  it("find_invoices, find_sales and find_journal_entries list the newest first", async () => {
+    const invoices = await raw<{ invoiceId: number }[]>("/invoices?pageSize=100");
+    const newestInvoice = await call<{ invoices: Row[] }>(client, "find_invoices", { limit: 2 });
+    expect(newestInvoice.invoices.map((row) => row.id)).toEqual(invoices.slice(-2).reverse().map((row) => row.invoiceId));
+
+    const sales = await raw<{ saleId: number; deleted?: boolean }[]>("/sales?pageSize=100");
+    const newestSale = await call<{ sales: Row[] }>(client, "find_sales", { limit: 1 });
+    expect(newestSale.sales[0]?.id).toBe(sales.filter((sale) => !sale.deleted).at(-1)?.saleId);
+
+    const entries = await raw<{ journalEntryId: number }[]>("/journalEntries?pageSize=100");
+    const newestEntries = await call<{ journalEntries: Row[] }>(client, "find_journal_entries", { limit: 3 });
+    expect(newestEntries.journalEntries.map((row) => row.id)).toEqual(entries.slice(-3).reverse().map((row) => row.journalEntryId));
+  });
+
   it("find_sales and find_purchases list and show details", async () => {
     const { sales } = await call<{ sales: Row[] }>(client, "find_sales");
     expect(sales.length).toBeGreaterThan(0);

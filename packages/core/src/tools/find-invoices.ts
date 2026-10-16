@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { checkPeriod, companyInput, fikenId, dateInput, idInput, limitInput, pageInput, paging, resolveCompany, ToolError } from "./common.ts";
+import { checkPeriod, companyInput, dateInput, fikenId, idInput, limitInput, newestFirst, pageInput, paging, resolveCompany, ToolError } from "./common.ts";
 import {
   creditNoteDetail,
   creditNoteSummary,
@@ -15,7 +15,7 @@ export const findInvoices = defineTool({
   access: "read",
   title: "Finn fakturaer og kreditnotaer",
   description:
-    "Fakturaer og kreditnotaer, også utkast, i kroner. status: draft, unpaid, overdue (forfalt), paid, all. " +
+    "Fakturaer og kreditnotaer, nyeste først, også utkast, i kroner. status: draft, unpaid, overdue (forfalt), paid, all. " +
     "Med id: linjer, betalinger og PDF (utkast: id med status=draft). Utestående per kunde: get_report receivables.",
   inputSchema: z.object({
     company: companyInput,
@@ -81,22 +81,29 @@ export const findInvoices = defineTool({
     const settled = input.status === "paid" ? true : input.status === "unpaid" || input.status === "overdue" ? false : undefined;
     const filters = { settled, customerId: input.customer_id, issueDateGe: input.from, issueDateLe: input.to };
 
+    // Fiken lists these oldest first with no way to sort, so newestFirst turns the pages around.
     if (input.type === "invoice") {
-      const { data, response } = await fiken.api.GET("/companies/{companySlug}/invoices", {
-        params: {
-          path: { companySlug },
-          query: { ...pageQuery, ...filters, dueDateLt: input.status === "overdue" ? today : undefined },
-        },
-      });
-      const invoices = (data ?? []).map(invoiceSummary);
-      return jsonResult({ invoices, sumGross: sumOf(invoices), paging: paging(input.page, input.limit, invoices.length, response) });
+      const dueDateLt = input.status === "overdue" ? today : undefined;
+      const { items, paging: pages } = await newestFirst(
+        (page, pageSize) =>
+          fiken.api.GET("/companies/{companySlug}/invoices", {
+            params: { path: { companySlug }, query: { page, pageSize, ...filters, dueDateLt } },
+          }),
+        input.page,
+        input.limit,
+      );
+      const invoices = items.map(invoiceSummary);
+      return jsonResult({ invoices, sumGross: sumOf(invoices), paging: pages });
     }
 
-    const { data, response } = await fiken.api.GET("/companies/{companySlug}/creditNotes", {
-      params: { path: { companySlug }, query: { ...pageQuery, ...filters } },
-    });
-    const creditNotes = (data ?? []).map(creditNoteSummary);
-    return jsonResult({ creditNotes, sumGross: sumOf(creditNotes), paging: paging(input.page, input.limit, creditNotes.length, response) });
+    const { items, paging: pages } = await newestFirst(
+      (page, pageSize) =>
+        fiken.api.GET("/companies/{companySlug}/creditNotes", { params: { path: { companySlug }, query: { page, pageSize, ...filters } } }),
+      input.page,
+      input.limit,
+    );
+    const creditNotes = items.map(creditNoteSummary);
+    return jsonResult({ creditNotes, sumGross: sumOf(creditNotes), paging: pages });
   },
 });
 

@@ -33,10 +33,15 @@ export const readApi = defineTool({
 
     const { data, response } = await fiken.getByTemplate(op.path, { path, query });
     const trimmed = trimResponse(data ?? null);
+    const pages = pageable && Array.isArray(data) ? paging(Number(query.page), Number(query.pageSize), data.length, response) : undefined;
+    // Without sortBy, Fiken lists oldest first (measured); say where the newest are.
+    const sortable = op.params.some((param) => param.name === "sortBy");
+    const lastPage = pages?.total ? Math.ceil(pages.total / pages.limit) - 1 : undefined;
     return jsonResult({
       operation_id: op.id,
       data: trimmed.data,
-      ...(pageable && Array.isArray(data) ? { paging: paging(Number(query.page), Number(query.pageSize), data.length, response) } : {}),
+      ...(pages ? { paging: pages } : {}),
+      ...(pages && !sortable && lastPage !== undefined ? { order: `Eldste først. De nyeste er på page ${lastPage}.` } : {}),
       ...(trimmed.note ? { note: trimmed.note } : {}),
     });
   },

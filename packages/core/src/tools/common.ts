@@ -61,6 +61,50 @@ export function paging(page: number, limit: number, returned: number, response: 
   return { page, limit, total, more: total === undefined ? returned === limit : (page + 1) * limit < total };
 }
 
+type FetchPage<T> = (page: number, pageSize: number) => Promise<{ data?: T[] | undefined; response: Response }>;
+
+/**
+ * Newest first over a Fiken list that only comes oldest first (invoices, sales, journal entries
+ * have no sortBy; measured). Page 0 is the newest `limit` items.
+ *
+ * The first call reads Fiken's page 0 and the total. If everything fits, that is the only call.
+ * Otherwise the newest-first page spans at most two of Fiken's pages, so a list costs 1–3 calls.
+ */
+export async function newestFirst<T>(fetchPage: FetchPage<T>, page: number, limit: number): Promise<{ items: T[]; paging: Paging }> {
+  const first = await fetchPage(0, limit);
+  const firstItems = first.data ?? [];
+  const total = resultCount(first.response) ?? firstItems.length;
+
+  // Indices [start, end) in Fiken's oldest-first order.
+  const end = total - page * limit;
+  const start = Math.max(0, end - limit);
+  const result = (items: T[]) => ({ items, paging: { page, limit, total, more: start > 0 } });
+  if (end <= 0) return result([]);
+
+  const fromPage = Math.floor(start / limit);
+  const toPage = Math.floor((end - 1) / limit);
+  const loaded: T[] = [];
+  for (let fikenPage = fromPage; fikenPage <= toPage; fikenPage++) {
+    loaded.push(...(fikenPage === 0 ? firstItems : ((await fetchPage(fikenPage, limit)).data ?? [])));
+  }
+  const offset = fromPage * limit;
+  return result(loaded.slice(start - offset, end - offset).reverse());
+}
+
+/** Like fetchPages, but from the last page backwards, so a capped scan keeps the newest items. */
+export async function fetchPagesNewestFirst<T>(fetchPage: FetchPage<T>, maxPages: number): Promise<{ items: T[]; complete: boolean }> {
+  const first = await fetchPage(0, MAX_PAGE_SIZE);
+  const total = resultCount(first.response);
+  const firstItems = first.data ?? [];
+  const pages = total === undefined ? 1 : Math.max(1, Math.ceil(total / MAX_PAGE_SIZE));
+  const items: T[] = [];
+  for (let page = pages - 1; page >= 0 && pages - page <= maxPages; page--) {
+    const batch = page === 0 ? firstItems : ((await fetchPage(page, MAX_PAGE_SIZE)).data ?? []);
+    items.push(...[...batch].reverse());
+  }
+  return { items, complete: pages <= maxPages };
+}
+
 /** Local paging over items already fetched and filtered here. */
 export function pageLocally<T>(items: T[], page: number, limit: number): { items: T[]; paging: Paging } {
   const slice = items.slice(page * limit, (page + 1) * limit);

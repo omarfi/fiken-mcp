@@ -6,12 +6,12 @@ import {
   fikenId,
   compact,
   dateInput,
-  fetchPages,
+  fetchPagesNewestFirst,
   idInput,
   limitInput,
+  newestFirst,
   pageInput,
   pageLocally,
-  paging,
   resolveCompany,
 } from "./common.ts";
 import { attachmentSummary, journalEntrySummary } from "./summaries.ts";
@@ -25,7 +25,7 @@ export const findJournalEntries = defineTool({
   access: "read",
   title: "Finn bilag og posteringer",
   description:
-    "Bilag og posteringer i kroner, positivt er debet. Med account: bilag som posterer på kontoen (standard hittil i år). " +
+    "Bilag og posteringer i kroner, nyeste først, positivt er debet. Med account: bilag som posterer på kontoen (standard hittil i år). " +
     "Med id eller transaction_id: detalj med vedlegg.",
   inputSchema: z.object({
     company: companyInput,
@@ -74,10 +74,11 @@ export const findJournalEntries = defineTool({
       const account = input.account;
       const from = input.from ?? `${(input.to ?? today).slice(0, 4)}-01-01`;
       const to = input.to ?? today;
-      const { items, complete } = await fetchPages(
-        (page) =>
+      // Scans from the newest page backwards, so a capped scan keeps the most recent entries.
+      const { items, complete } = await fetchPagesNewestFirst(
+        (page, pageSize) =>
           fiken.api.GET("/companies/{companySlug}/journalEntries", {
-            params: { path: { companySlug }, query: { dateGe: from, dateLe: to, page, pageSize: MAX_PAGE_SIZE } },
+            params: { path: { companySlug }, query: { dateGe: from, dateLe: to, page, pageSize } },
           }),
         MAX_SCAN_PAGES,
       );
@@ -89,14 +90,19 @@ export const findJournalEntries = defineTool({
         ...pageLocally(matches, input.page, input.limit),
         ...(complete
           ? {}
-          : { note: `Perioden har flere enn ${MAX_SCAN_PAGES * MAX_PAGE_SIZE} bilag, og bare de første ble søkt gjennom. Velg en kortere periode.` }),
+          : { note: `Perioden har flere enn ${MAX_SCAN_PAGES * MAX_PAGE_SIZE} bilag, og bare de nyeste ble søkt gjennom. Velg en kortere periode.` }),
       });
     }
 
-    const { data, response } = await fiken.api.GET("/companies/{companySlug}/journalEntries", {
-      params: { path: { companySlug }, query: { dateGe: input.from, dateLe: input.to, page: input.page, pageSize: input.limit } },
-    });
-    const journalEntries = (data ?? []).map(journalEntrySummary);
-    return jsonResult({ journalEntries, paging: paging(input.page, input.limit, journalEntries.length, response) });
+    // Fiken lists journal entries oldest first with no way to sort, so newestFirst turns the pages around.
+    const { items, paging: pages } = await newestFirst(
+      (page, pageSize) =>
+        fiken.api.GET("/companies/{companySlug}/journalEntries", {
+          params: { path: { companySlug }, query: { dateGe: input.from, dateLe: input.to, page, pageSize } },
+        }),
+      input.page,
+      input.limit,
+    );
+    return jsonResult({ journalEntries: items.map(journalEntrySummary), paging: pages });
   },
 });

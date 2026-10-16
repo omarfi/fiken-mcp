@@ -92,7 +92,8 @@ describe("find_invoices", () => {
     });
     const result = await run(transport, "find_invoices", { company: COMPANY });
     expect(result.structuredContent).toMatchObject({
-      invoices: [{ id: 1, gross: 125, outstanding: 125, settled: false, customer: { id: 5, name: "Kunde AS" } }, { id: 2, gross: 250.5 }],
+      // Newest first: Fiken's last item comes first.
+      invoices: [{ id: 2, gross: 250.5 }, { id: 1, gross: 125, outstanding: 125, settled: false, customer: { id: 5, name: "Kunde AS" } }],
       sumGross: 375.5,
     });
   });
@@ -122,7 +123,9 @@ describe("find_journal_entries", () => {
     const page = Array.from({ length: 100 }, () => entries[1]);
     const transport = routes({ "/journalEntries": page }, { "Fiken-Api-Result-Count": "5000" });
     const result = await run(transport, "find_journal_entries", { company: COMPANY, account: "3000" });
-    expect(transport.requests).toHaveLength(10);
+    // The first call reads the total, then the scan goes from the newest page backwards.
+    expect(transport.requests).toHaveLength(11);
+    expect(query(transport.requests[1]).get("page")).toBe("49");
     expect((result.structuredContent as { note: string }).note).toContain("kortere periode");
   });
 });
@@ -224,5 +227,50 @@ describe("get_report", () => {
     });
     const payables = await run(transport, "get_report", { company: COMPANY, type: "payables" });
     expect(payables.structuredContent).toMatchObject({ total: 500, suppliers: [{ name: "Leverandør", amount: 500 }] });
+  });
+});
+
+describe("newest first", () => {
+  /** A Fiken list of `total` items with IDs 0..total-1, oldest first, honouring page and pageSize. */
+  function oldestFirst(total: number) {
+    return new MockTransport((request) => {
+      const params = query(request);
+      const page = Number(params.get("page"));
+      const size = Number(params.get("pageSize"));
+      const ids = Array.from({ length: total }, (_, id) => id).slice(page * size, (page + 1) * size);
+      return json(
+        ids.map((id) => ({ invoiceId: id, gross: 100 })),
+        { headers: { "Fiken-Api-Result-Count": String(total) } },
+      );
+    });
+  }
+  const ids = (result: Awaited<ReturnType<typeof run>>) => (result.structuredContent as { invoices: { id: number }[] }).invoices.map((i) => i.id);
+
+  it("returns the newest items first, from the two Fiken pages that hold them", async () => {
+    const transport = oldestFirst(45);
+    const result = await run(transport, "find_invoices", { company: COMPANY, limit: 20 });
+    expect(ids(result)).toEqual(Array.from({ length: 20 }, (_, i) => 44 - i));
+    expect(result.structuredContent).toMatchObject({ paging: { page: 0, limit: 20, total: 45, more: true } });
+    expect(transport.requests.map((r) => query(r).get("page"))).toEqual(["0", "1", "2"]);
+  });
+
+  it("reuses Fiken's first page for the oldest items", async () => {
+    const transport = oldestFirst(45);
+    const result = await run(transport, "find_invoices", { company: COMPANY, limit: 20, page: 2 });
+    expect(ids(result)).toEqual([4, 3, 2, 1, 0]);
+    expect(result.structuredContent).toMatchObject({ paging: { page: 2, more: false } });
+    expect(transport.requests).toHaveLength(1);
+  });
+
+  it("needs one call when everything fits on a page", async () => {
+    const transport = oldestFirst(6);
+    const result = await run(transport, "find_invoices", { company: COMPANY });
+    expect(ids(result)).toEqual([5, 4, 3, 2, 1, 0]);
+    expect(transport.requests).toHaveLength(1);
+  });
+
+  it("returns an empty page beyond the oldest item", async () => {
+    const result = await run(oldestFirst(6), "find_invoices", { company: COMPANY, page: 3 });
+    expect(ids(result)).toEqual([]);
   });
 });
