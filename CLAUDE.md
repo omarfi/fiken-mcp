@@ -70,8 +70,8 @@ Adrian. The rest on request — the details are in the diff.
 
 ## Git flow
 
-- **Until the system is finished (M8 done), commit and push directly to
-  `main`.** After that, every change goes through a branch and a pull request.
+- **Every change goes through a branch and a pull request.** M8 was finished on
+  16.10.2026; until then commits went straight to `main`.
 - **Run `pnpm check` before every commit.** CI runs the same checks on `main`.
 - Commit messages are in English, imperative, and refer to the milestone.
 
