@@ -2,6 +2,7 @@ import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/serv
 import type * as z from "zod";
 import type { OrganizationLookup } from "../brreg.ts";
 import type { FikenClient } from "../fiken/client.ts";
+import type { UploadLinkIssuer } from "../uploads.ts";
 
 /** What the user granted on the consent page. Write implies read. */
 export type AccessLevel = "read" | "write";
@@ -12,6 +13,8 @@ export interface ToolContext {
   today: string;
   /** Enhetsregisteret. Injected so tests do not call it. */
   lookupOrganization: OrganizationLookup;
+  /** Issues one-time upload links. Missing where the platform has no upload page. */
+  issueUploadLink?: UploadLinkIssuer | undefined;
 }
 
 export interface ToolDefinition<Input extends z.ZodObject = z.ZodObject> {
@@ -34,6 +37,12 @@ export const READ_ONLY: ToolAnnotations = { readOnlyHint: true, openWorldHint: f
 
 /** Creates or changes something that can be changed back or deleted, and books nothing. */
 export const REVERSIBLE_WRITE: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
+
+/** Books, deletes or otherwise cannot simply be changed back. Clients always ask before these. */
+export const DESTRUCTIVE: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
+
+/** Confirm-first wording every destructive tool description carries, since claude.ai drops server instructions. */
+export const CONFIRM_FIRST = "Oppsummer hva som skjer, og få tydelig bekreftelse fra brukeren først.";
 
 /** A successful result: compact JSON for the model, the same object as structured content. */
 export function jsonResult(data: Record<string, unknown>): CallToolResult {

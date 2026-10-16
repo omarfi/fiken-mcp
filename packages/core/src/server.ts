@@ -6,6 +6,7 @@ import { INSTRUCTIONS } from "./instructions.ts";
 import { SERVER_DISPLAY_NAME, SERVER_NAME, SERVER_VERSION } from "./server-info.ts";
 import { todayInNorway, ToolError } from "./tools/common.ts";
 import { TOOLS } from "./tools/index.ts";
+import type { UploadLinkIssuer } from "./uploads.ts";
 import { errorResult, type AccessLevel, type ToolDefinition } from "./tools/tool.ts";
 
 /** Metadata about one tool call, for logging. Never contains accounting data or tokens. */
@@ -27,6 +28,8 @@ export interface FikenServerOptions {
   today?: () => string;
   /** Enhetsregisteret lookup. Defaults to the public API. */
   lookupOrganization?: OrganizationLookup;
+  /** One-time upload links. Without it, create_upload_link says uploads are unavailable. */
+  issueUploadLink?: UploadLinkIssuer;
   /** Called with unexpected errors. The model only gets a generic message. */
   onError?: (error: unknown) => void;
 }
@@ -74,6 +77,7 @@ function registerTool(server: McpServer, tool: ToolDefinition, options: FikenSer
           fiken: options.fiken,
           today: options.today?.() ?? todayInNorway(),
           lookupOrganization: options.lookupOrganization ?? defaultLookup,
+          issueUploadLink: options.issueUploadLink,
         });
         report(result.isError ? "tool_error" : "ok");
         return result;

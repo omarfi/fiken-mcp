@@ -5,6 +5,7 @@ import { tokenExchangeCallback } from "./auth/token-exchange.ts";
 import { MCP_RESOURCE, SCOPE_READ, SCOPE_WRITE } from "./config.ts";
 import { log } from "./log.ts";
 import { mcpHandler } from "./mcp.ts";
+import { receiveUpload, showUploadPage } from "./upload.ts";
 import { escapeHtml, htmlPage, messagePage } from "./ui/page.ts";
 
 export { FikenUserQueue } from "./queue.ts";
@@ -21,6 +22,10 @@ const appHandler = {
     if (pathname === "/authorize" && method === "POST") return submitConsent(request, env);
     if (pathname === "/callback" && method === "GET") return finishSignIn(request, env);
     if (pathname === "/" && method === "GET") return landingPage();
+
+    const upload = /^\/upload\/([^/]+)$/.exec(pathname)?.[1];
+    if (upload && method === "GET") return showUploadPage(env, upload);
+    if (upload && method === "POST") return receiveUpload(env, upload, request);
 
     return messagePage(404, "Fant ikke siden", "Adressen finnes ikke.");
   },

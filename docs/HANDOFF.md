@@ -52,6 +52,7 @@ Bygget:
 - [x] M3 Leseverktøy (16.10.2026): `find_contacts`, `find_products`, `find_invoices`, `find_sales`, `find_purchases`, `find_accounts`, `find_journal_entries`, `find_inbox`, `get_report` (`result`, `balance`, `receivables`, `payables`, `product_sales`). 13 integrasjonstester mot testforetaket er grønne. Verifisert fra claude.ai i produksjon, alle kall ok.
 - [x] M4 Gateway (16.10.2026): `explore_api` og `read_api` over 51 `GET`-operasjoner generert fra spec-en. Alle 131 operasjoner som ikke er `GET` avvises i test. Verifisert fra claude.ai, inkludert norsk melding for modul som ikke er aktivert (402).
 - [x] M5 Reversible skriveverktøy (16.10.2026): `save_contact` (Enhetsregisteret, duplikatsjekk), `save_product`, `save_invoice_draft`, `save_purchase_draft`, `save_sale_draft`. 6 skrivende integrasjonstester rydder etter seg. Verifisert fra claude.ai: duplikat stoppet, kjøp koblet til leverandør via org.nr., netto regnet fra brutto, felter beholdt ved endring.
+- [x] M6 Destruktive verktøy og opplastingslenke (16.10.2026): `finalize_draft`, `delete_draft`, `register_payment`, `create_journal_entry`, `credit_invoice`, `send_document`, `create_upload_link` med opplastingsside. Kjøps-, salgs-, bilags- og fakturaflyt bokført og annullert i testforetaket. `send_document` er bare enhetstestet, siden en ekte test sender e-post.
 
 ## 3. Låste beslutninger
 
@@ -92,6 +93,8 @@ Godkjent av Adrian 16.10.2026.
 | Kø-regler | Ligger i core som `FikenScheduler` (serialisering, 300 ms mellom kall, backoff ved 429, circuit breaker etter tre 429 på rad, ingen retry av skrivekall). `FikenUserQueue` kjører den og lagrer circuit breaker-tilstanden. Svar krysser RPC som enkle data. | Testbart uten Cloudflare og gjenbrukbart for andre verter. |
 | Rekkefølge | `find_invoices`, `find_sales` og `find_journal_entries` viser nyeste først, også der Fiken bare gir eldste først. De leser totalen og henter de én eller to Fiken-sidene som har de nyeste (1–3 kall). Kontosøk i bilag går fra siste side bakover. `read_api` sier hvilken side som har de nyeste. | «De siste fakturaene» skal være riktig uten at modellen må bla. Adrians valg (etter M4). |
 | Kreditering av faktura | Eget destruktivt verktøy `credit_invoice` i M6 (`POST /creditNotes/full` eller `/partial`), siden et kreditnota-utkast ikke kan peke på en faktura. `save_invoice_draft` lager bare uavhengige kreditnota-utkast. Totalt 24 verktøy. | Vanlig behov, og ren semantikk. Adrians valg (før M5). |
+| Opplastingslenke | Token på 256 bit i URL-en. KV (`OAUTH_KV`, prefiks `upload:`) lagrer bare SHA-256 av tokenet og posten kryptert med AES-GCM under en nøkkel utledet av tokenet, så KV alene avslører verken token eller Fiken-token. 15 minutter, engangs (slettes før opplasting), PDF/PNG/JPG/GIF, maks 10 MB. Mål: innboks, kjøps- og salgsutkast, kjøp og salg. | Ingen ny Cloudflare-ressurs, og ingen klartekst-token i lagring. Valgt av Claude (M6). |
+| Destruktive tester | Opt-in med `FIKEN_DESTRUCTIVE_TESTS=1`, mot testforetaket, med vakt som aldri slipper gjennom `send`. Kjøp, salg og bilag annulleres etterpå. Faktura krediteres. | Bokføringer kan ikke slettes, bare annulleres. Valgt av Claude (M6). |
 
 ## 4. Arkitektur
 
@@ -392,6 +395,10 @@ Målt mot testforetaket 16.10.2026 (personlig API-nøkkel, se seksjon 12):
 - **Personlig API-nøkkel** gir tilgang til alle brukerens foretak, ikke bare testforetaket. Integrasjonstestene låses til `fiken-demo-slott-og-fly-as` og sjekker `testCompany: true`.
 - **Spor etter målingen:** to bilag datert 4.1.2027 i testforetaket (100 kr på 8040 og en motpostering), som går i null mot hverandre.
 - **`PUT` på kontakt** beholder kontaktpersonene når `contactPerson`-listen fra `GET` sendes med uendret. Skrivetestene rydder etter seg (kontakter, produkter, utkast og innboks slettes).
+- **Bokføring av faktura:** et fakturautkast uten `bankAccountNumber` gir `500` fra Fiken ved `createInvoice`, ikke en valideringsfeil. `save_invoice_draft` setter foretakets første aktive bankkonto, og `finalize_draft` stopper før kallet hvis den mangler. `Location` etter `createInvoice` peker på `/invoices/{id}`.
+- **Nummerserier:** mangler en nummerserie (kreditnota, tilbud), svarer Fiken `401` eller `409` med «counter not initialized». Det gir nå en egen norsk melding, ikke «logg inn på nytt». Kreditnotaserien i testforetaket er satt til 10000 via API. Tilbudsserien er ikke satt opp.
+- **Kreditnotaer** har negative beløp og ingen referanse tilbake til fakturaen i svaret.
+- **Destruktive integrasjonstester** (`FIKEN_DESTRUCTIVE_TESTS=1`) bokfører og annullerer kjøp, salg og bilag. Hver kjøring etterlater én faktura og kreditnotaen som opphever den. Første kjøring 16.10.2026 laget faktura 10007 (kreditert manuelt) og 10008 med kreditnota 10002.
 - **Rekkefølge:** `invoices`, `sales`, `creditNotes`, `journalEntries`, `transactions` og `offers` kommer eldste først og har ingen `sortBy`. `purchases` (`date desc`), `inbox` (`createdDate desc`) og `contacts` kan sorteres. Funnet i test fra claude.ai 16.10.2026.
 
 Funn om Claude som MCP-klient (16.10.2026, kilder: claude.com/docs/connectors/building):

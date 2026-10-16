@@ -53,6 +53,27 @@ function writeGuard(request: FikenHttpRequest): void {
   }
 }
 
+/**
+ * Bookkeeping the destructive tests may do, on top of WRITABLE: finalize drafts, register payments,
+ * book journal entries, credit invoices, and annul what they booked. Never send.
+ */
+const BOOKABLE = [
+  /^\/(invoices|creditNotes|offers|sales|purchases)\/drafts\/\d+\/create[A-Za-z]+$/,
+  /^\/(sales|purchases)\/\d+\/payments$/,
+  /^\/(sales|purchases)\/\d+\/attachments$/,
+  /^\/generalJournalEntries$/,
+  /^\/creditNotes\/(full|partial)$/,
+  /^\/(sales|purchases|transactions)\/\d+\/delete$/,
+];
+
+function destructiveGuard(request: FikenHttpRequest): void {
+  const prefix = `/companies/${TEST_COMPANY}`;
+  const path = request.path.split("?")[0] ?? "";
+  const local = path.slice(prefix.length);
+  if (request.method !== "GET" && path.startsWith(prefix) && BOOKABLE.some((pattern) => pattern.test(local))) return;
+  writeGuard(request);
+}
+
 let scheduler: FikenScheduler | undefined;
 
 /** One scheduler for the whole run, so tests respect Fiken's limits like production does. */
@@ -99,6 +120,22 @@ export async function liveClient(token: string): Promise<Client> {
   const transport = liveTransport(token);
   await assertTestCompany(transport);
   return connect(transport, { access: "read", today: () => TODAY });
+}
+
+/** Books in the test company. Only for FIKEN_DESTRUCTIVE_TESTS=1. */
+export function liveDestructiveTransport(token: string): FikenTransport {
+  return {
+    send(request) {
+      destructiveGuard(request);
+      return run(token, request);
+    },
+  };
+}
+
+export async function liveDestructiveClient(token: string): Promise<Client> {
+  const transport = liveDestructiveTransport(token);
+  await assertTestCompany(transport);
+  return connect(transport, { access: "write", today: () => TODAY, lookupOrganization: brregLookup() });
 }
 
 /** A client with write tools, against the real Enhetsregisteret. */

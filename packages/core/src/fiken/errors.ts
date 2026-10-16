@@ -48,7 +48,19 @@ function transportMessage(kind: FikenFailureKind, retryAfterSeconds: number | un
   }
 }
 
+const COUNTERS: [RegExp, string][] = [
+  [/credit note counter/i, "kreditnotaer"],
+  [/offer counter/i, "tilbud"],
+  [/order confirmation counter/i, "ordrebekreftelser"],
+  [/invoice counter/i, "fakturaer"],
+];
+
 function messageFor(status: number, fikenMessage: string | undefined, write: boolean): string {
+  // A missing number series comes back as 401 or 409 (measured); it is not a sign-in problem.
+  if (fikenMessage && /counter not initiali[sz]ed/i.test(fikenMessage)) {
+    const what = COUNTERS.find(([pattern]) => pattern.test(fikenMessage))?.[1] ?? "dokumentet";
+    return `Nummerserien for ${what} er ikke satt opp i Fiken. Brukeren må lage den første i Fiken, eller sette startnummer i innstillingene, og så prøve igjen.`;
+  }
   const detail = fikenMessage ? ` Fiken sier: ${fikenMessage}` : "";
   switch (status) {
     case 400:

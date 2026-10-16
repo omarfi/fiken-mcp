@@ -28,6 +28,15 @@ describe("readFikenMessage", () => {
 });
 
 describe("FikenApiError", () => {
+  it("explains a missing number series, whatever the status (401 and 409 measured)", () => {
+    const text = "Company credit note counter not initialized, create a credit note in Fiken to set base number";
+    for (const status of [401, 409]) {
+      const message = new FikenApiError(status, text).message;
+      expect(message).toContain("Nummerserien for kreditnotaer");
+      expect(message).not.toContain("Innloggingen");
+    }
+  });
+
   it("explains a missing module", () => {
     expect(new FikenApiError(402, "Project/time-tracking module not activated").message).toContain("modul som ikke er aktivert");
   });

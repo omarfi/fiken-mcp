@@ -15,7 +15,7 @@ export const findInvoices = defineTool({
   access: "read",
   title: "Finn fakturaer og kreditnotaer",
   description:
-    "Fakturaer og kreditnotaer, nyeste først, også utkast, i kroner. status: draft, unpaid, overdue (forfalt), paid, all. " +
+    "Fakturaer og kreditnotaer, nyeste først, i kroner. status: draft, unpaid, overdue, paid, all. " +
     "Med id: linjer, betalinger og PDF (utkast: id med status=draft). Utestående per kunde: get_report receivables.",
   inputSchema: z.object({
     company: companyInput,

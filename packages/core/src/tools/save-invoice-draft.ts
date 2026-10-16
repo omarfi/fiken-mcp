@@ -49,7 +49,6 @@ export const saveInvoiceDraft = defineTool({
     invoice_text: z.string().optional(),
     your_reference: z.string().optional(),
     our_reference: z.string().optional(),
-    order_reference: z.string().optional(),
     from_time_entries: z.array(z.number().positive()).min(1).optional().describe("Timer som faktureres"),
     from_order_confirmation_id: fikenId("Lag fra ordrebekreftelse").optional(),
   }),
@@ -107,7 +106,6 @@ export const saveInvoiceDraft = defineTool({
         invoiceText: input.invoice_text,
         yourReference: input.your_reference,
         ourReference: input.our_reference,
-        orderReference: input.order_reference,
         lines,
       }),
     } as DraftRequest;
@@ -116,6 +114,8 @@ export const saveInvoiceDraft = defineTool({
     body.daysUntilDueDate ??= 14;
     if (body.customerId === undefined) throw new ToolError("Oppgi customer_id. Finn kunden med find_contacts, eller opprett den med save_contact.");
     if (!body.lines?.length) throw new ToolError("Oppgi minst én linje.");
+    // Fiken answers 500 when an invoice draft without a bank account is finalized (measured), so set it here.
+    if (type !== "offer") body.bankAccountNumber ??= await defaultBankAccount(fiken, companySlug);
 
     if (input.id !== undefined) {
       await putDraft(fiken, type, companySlug, input.id, body);
@@ -124,6 +124,14 @@ export const saveInvoiceDraft = defineTool({
     return result(fiken, companySlug, type, await postDraft(fiken, type, companySlug, body), true);
   },
 });
+
+/** The account customers pay to: the company's first active ordinary bank account. */
+async function defaultBankAccount(fiken: FikenClient, companySlug: string): Promise<string> {
+  const { data } = await fiken.api.GET("/companies/{companySlug}/bankAccounts", { params: { path: { companySlug }, query: { inactive: false } } });
+  const account = data?.find((candidate) => candidate.type === "normal" && candidate.bankAccountNumber);
+  if (!account?.bankAccountNumber) throw new ToolError("Foretaket har ingen bankkonto i Fiken. Den må legges til i Fiken før det kan faktureres.");
+  return account.bankAccountNumber;
+}
 
 async function result(fiken: FikenClient, companySlug: string, type: DraftType, draftId: number, created: boolean) {
   const draft = await getDraft(fiken, type, companySlug, draftId);

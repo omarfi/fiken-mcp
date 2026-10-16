@@ -13,7 +13,7 @@ describe("INSTRUCTIONS", () => {
   });
 
   it("requires confirmation before every destructive tool", () => {
-    for (const tool of ["finalize_draft", "register_payment", "create_journal_entry", "send_document", "delete_draft"]) {
+    for (const tool of ["finalize_draft", "register_payment", "create_journal_entry", "credit_invoice", "send_document", "delete_draft"]) {
       expect(INSTRUCTIONS).toContain(tool);
     }
   });

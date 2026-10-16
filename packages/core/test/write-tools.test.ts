@@ -223,18 +223,23 @@ describe("save_sale_draft", () => {
 describe("save_invoice_draft", () => {
   it("creates an invoice draft with defaults and product lines", async () => {
     const { transport, bodies } = fiken({
+      [`GET ${BASE}/bankAccounts`]: [{ bankAccountId: 1, type: "normal", bankAccountNumber: "12345678903" }],
       [`POST ${BASE}/invoices/drafts`]: created(`${BASE}/invoices/drafts/12`),
       [`GET ${BASE}/invoices/drafts/12`]: { draftId: 12, type: "invoice" },
     });
     const result = await run(transport, "save_invoice_draft", { customer_id: 5, lines: [{ product_id: 4, quantity: 3 }] });
     expect(result.isError).toBeFalsy();
     expect(bodies("POST", `${BASE}/invoices/drafts`)).toEqual([
-      { customerId: 5, lines: [{ productId: 4, quantity: 3 }], type: "invoice", issueDate: TODAY, daysUntilDueDate: 14 },
+      { customerId: 5, lines: [{ productId: 4, quantity: 3 }], type: "invoice", issueDate: TODAY, daysUntilDueDate: 14, bankAccountNumber: "12345678903" },
     ]);
   });
 
   it("needs description and price on a line without a product, and defaults VAT and account", async () => {
-    const routes = { [`POST ${BASE}/creditNotes/drafts`]: created(`${BASE}/creditNotes/drafts/2`), [`GET ${BASE}/creditNotes/drafts/2`]: { draftId: 2 } };
+    const routes = {
+      [`GET ${BASE}/bankAccounts`]: [{ bankAccountId: 1, type: "normal", bankAccountNumber: "12345678903" }],
+      [`POST ${BASE}/creditNotes/drafts`]: created(`${BASE}/creditNotes/drafts/2`),
+      [`GET ${BASE}/creditNotes/drafts/2`]: { draftId: 2 },
+    };
     const missing = await run(fiken(routes).transport, "save_invoice_draft", { type: "credit_note", customer_id: 5, lines: [{ description: "Retur" }] });
     expect(missing.isError).toBe(true);
     const { transport, bodies } = fiken(routes);
