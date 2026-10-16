@@ -26,3 +26,21 @@ jobs:
         run: |
           pnpm gen:types
           git diff --exit-code packages/core/src/fiken/types.gen.ts packages/core/src/gateway/ops.gen.ts
+
+  integration:
+    # Read and write tests against Fiken's test company. Runs when the FIKEN_TEST_TOKEN secret is set.
+    runs-on: ubuntu-latest
+    needs: check
+    env:
+      FIKEN_TEST_TOKEN: ${{ secrets.FIKEN_TEST_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Integration tests
+        if: env.FIKEN_TEST_TOKEN != ''
+        run: pnpm test:integration

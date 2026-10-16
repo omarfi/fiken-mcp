@@ -1,0 +1,25 @@
+name: Fiken spec drift
+
+# Fails (and GitHub notifies) when Fiken's published OpenAPI spec differs from spec/fiken-openapi.yaml.
+# Update with `pnpm spec:update`, regenerate, and check the tools against the change.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare with the published spec
+        run: |
+          curl -fsSL https://api.fiken.no/api/v2/docs/swagger.yaml -o /tmp/fiken-openapi.yaml
+          if ! diff -q spec/fiken-openapi.yaml /tmp/fiken-openapi.yaml; then
+            diff -u spec/fiken-openapi.yaml /tmp/fiken-openapi.yaml | head -200
+            echo "::error::Fiken's OpenAPI spec has changed. Run pnpm spec:update and review the diff."
+            exit 1
+          fi
