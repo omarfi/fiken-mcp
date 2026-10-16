@@ -55,6 +55,8 @@ function messageFor(status: number, fikenMessage: string | undefined, write: boo
       return `Fiken avviste forespørselen.${detail}`;
     case 401:
       return "Innloggingen mot Fiken er ikke lenger gyldig. Brukeren må koble til Fiken på nytt.";
+    case 402:
+      return `Funksjonen krever en modul som ikke er aktivert i Fiken for dette foretaket.${detail}`;
     case 403:
       return `Ingen tilgang i Fiken. Sjekk at koblingen har tilgang til foretaket, og at foretaket har API-tillegget.${detail}`;
     case 404:
@@ -73,24 +75,42 @@ function messageFor(status: number, fikenMessage: string | undefined, write: boo
   }
 }
 
-/** Extracts Fiken's own error text from a response body, if there is one. */
+/**
+ * Extracts Fiken's own error text from a response body, if there is one. Fiken uses two formats
+ * (measured 16.10.2026): `{ error, error_description }` and `[{ logref, message }]`, where
+ * `message` is Markdown with links into the Fiken web app.
+ */
 export async function readFikenMessage(response: Response): Promise<string | undefined> {
   const text = (await response.text()).trim();
   if (!text) return undefined;
+  let body: unknown;
   try {
-    const body: unknown = JSON.parse(text);
-    if (body && typeof body === "object") {
-      for (const key of ["error_description", "message", "error"]) {
-        const value = (body as Record<string, unknown>)[key];
-        if (typeof value === "string" && value) return truncate(value);
-      }
-    }
+    body = JSON.parse(text);
   } catch {
-    // Not JSON: fall through to the raw text.
+    return truncate(text);
   }
-  return truncate(text);
+  const messages = (Array.isArray(body) ? body : [body]).map(messageOf).filter((message) => message !== undefined);
+  return messages.length > 0 ? truncate(messages.map(plainText).join(" ")) : truncate(text);
+}
+
+function messageOf(item: unknown): string | undefined {
+  if (!item || typeof item !== "object") return undefined;
+  for (const key of ["error_description", "message", "error"]) {
+    const value = (item as Record<string, unknown>)[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return undefined;
+}
+
+/** Strips the Markdown Fiken puts in messages: emphasis and links (the link text is kept). */
+function plainText(markdown: string): string {
+  return markdown
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\*\*|__/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function truncate(text: string): string {
-  return text.length > 300 ? `${text.slice(0, 300)}…` : text;
+  return text.length > 400 ? `${text.slice(0, 400)}…` : text;
 }

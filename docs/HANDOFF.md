@@ -348,6 +348,7 @@ Avklar mot testforetaket underveis, og oppdater dette dokumentet med svarene.
 - [ ] **PUT:** Erstatter `PUT` hele objektet? Gjelder kontakter, produkter og utkast.
 - [x] **Location:** Returnerer `create…`-kallene ID-en til det nye dokumentet?
   - Svar (spec): ja, «For successful POSTs/PUTs/PATCHs a Location header is given in all cases». Body er tom, så vi leser tilbake via Location.
+  - Målt 16.10.2026: `POST /generalJournalEntries` gir `201` med tom body, og `Location` peker på `/transactions/{id}`, ikke på bilaget som spec-en sier. Les tilbake via Location, ikke via antatt sti.
 - [x] **Kreditnota-utkast:** Kan et kreditnota-utkast opprettes med referanse til en faktura?
   - Svar (spec): nei. Kreditnota-utkast er «uavhengig kreditnota». Kreditering av en faktura skjer direkte med `POST /creditNotes/full` (`invoiceId`) eller `/creditNotes/partial`, uten utkast. Påvirker `save_invoice_draft` (`credited_invoice_id`) og `finalize_draft`. Må avklares før M5.
 - [ ] **Betaling på faktura:** Går den via tilhørende salg (`/sales/{id}/payments`), eller finnes et eget endepunkt?
@@ -369,6 +370,20 @@ Andre funn i spec-en (16.10.2026):
 - Spec-en finnes offisielt på https://api.fiken.no/api/v2/docs/swagger.yaml (YAML, nyere enn den uoffisielle kopien). Ligger i `spec/fiken-openapi.yaml`.
 - `POST /products/salesReport` er en lese-operasjon som bruker POST. Den hører hjemme i `get_report`, ikke i gatewayen (som bare tillater GET).
 - Sletting av kjøp, salg og transaksjoner er `PATCH …/delete`, ikke `DELETE`. Allowlisten må bygges på metode, ikke på sti.
+
+Målt mot testforetaket 16.10.2026 (personlig API-nøkkel, se seksjon 12):
+
+- **Saldo per dato:** `accountBalances?date=` gir utgående saldo på datoen, og bare for kontoer med bevegelse. Resultatkontoene (3000–8999) nullstilles ved årsskiftet, så saldoen er hittil i år. Balansekontoene føres videre. Resultat for en periode = saldo(til) − saldo(dagen før fra), innenfor samme år.
+- **Navnesøk:** `contacts?name=` er delvis treff uten forskjell på store og små bokstaver. `products?name=` er bare eksakt treff, så produktsøk filtreres hos oss.
+- **Paginering:** `/accounts` er paginert (493 kontoer), selv om tabellen i spec-en sier nei. Svar uten `Content-Length` (chunked).
+- **Feilformat:** to varianter, `{ error, error_description }` og `[{ logref, message }]` der `message` er Markdown. Modul som ikke er aktivert gir `402` (f.eks. prosjekter).
+- **Åpne posteringer:** et bilag med `open: true` kan ikke annulleres via API-et («Åpne posteringer kan kun endres/slettes av systemet»), stikk i strid med spec-en. `create_journal_entry` skal aldri sende `open: true`.
+- **Annullering:** `PATCH /transactions/{id}/delete` krever `description` og lager en motpostering.
+- **Bilagslinjer** har konto, men `journalEntries` kan ikke filtreres på konto. Filtreres hos oss.
+- **`bankBalances`** er saldo fra bankavtalen, ikke fra regnskapet. Tom i testforetaket.
+- **Svarstørrelse:** en faktura inneholder hele kunden, salget, linjene og PDF-lenker. Sammendragene må kuttes.
+- **Personlig API-nøkkel** gir tilgang til alle brukerens foretak, ikke bare testforetaket. Integrasjonstestene låses til `fiken-demo-slott-og-fly-as` og sjekker `testCompany: true`.
+- **Spor etter målingen:** to bilag datert 4.1.2027 i testforetaket (100 kr på 8040 og en motpostering), som går i null mot hverandre.
 
 Funn om Claude som MCP-klient (16.10.2026, kilder: claude.com/docs/connectors/building):
 
