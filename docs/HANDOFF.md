@@ -50,6 +50,7 @@ Bygget:
 - [x] M1 Auth, samtykkeside, deploy og `list_companies` (16.10.2026). Verifisert ende til ende fra Claude mot testforetaket «Fiken-demo - Slott og fly AS».
 - [x] M2 Fiken-klient, `FikenUserQueue`, øre ↔ kroner og feilhåndtering (16.10.2026). Deployet og verifisert med `list_companies`.
 - [x] M3 Leseverktøy (16.10.2026): `find_contacts`, `find_products`, `find_invoices`, `find_sales`, `find_purchases`, `find_accounts`, `find_journal_entries`, `find_inbox`, `get_report` (`result`, `balance`, `receivables`, `payables`, `product_sales`). 13 integrasjonstester mot testforetaket er grønne. Verifisert fra claude.ai i produksjon, alle kall ok.
+- [x] M4 Gateway (16.10.2026): `explore_api` og `read_api` over 51 `GET`-operasjoner generert fra spec-en. Alle 131 operasjoner som ikke er `GET` avvises i test. Verifisert fra claude.ai, inkludert norsk melding for modul som ikke er aktivert (402).
 
 ## 3. Låste beslutninger
 
@@ -385,6 +386,7 @@ Målt mot testforetaket 16.10.2026 (personlig API-nøkkel, se seksjon 12):
 - **Svarstørrelse:** en faktura inneholder hele kunden, salget, linjene og PDF-lenker. Sammendragene må kuttes.
 - **Personlig API-nøkkel** gir tilgang til alle brukerens foretak, ikke bare testforetaket. Integrasjonstestene låses til `fiken-demo-slott-og-fly-as` og sjekker `testCompany: true`.
 - **Spor etter målingen:** to bilag datert 4.1.2027 i testforetaket (100 kr på 8040 og en motpostering), som går i null mot hverandre.
+- **Rekkefølge:** `invoices`, `sales`, `creditNotes`, `journalEntries`, `transactions` og `offers` kommer eldste først og har ingen `sortBy`. `purchases` (`date desc`), `inbox` (`createdDate desc`) og `contacts` kan sorteres. Funnet i test fra claude.ai 16.10.2026.
 
 Funn om Claude som MCP-klient (16.10.2026, kilder: claude.com/docs/connectors/building):
 
