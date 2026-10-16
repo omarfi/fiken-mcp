@@ -49,6 +49,7 @@ Bygget:
 - [x] M0 Repo-oppsett (16.10.2026).
 - [x] M1 Auth, samtykkeside, deploy og `list_companies` (16.10.2026). Verifisert ende til ende fra Claude mot testforetaket «Fiken-demo - Slott og fly AS».
 - [x] M2 Fiken-klient, `FikenUserQueue`, øre ↔ kroner og feilhåndtering (16.10.2026). Deployet og verifisert med `list_companies`.
+- [x] M3 Leseverktøy (16.10.2026): `find_contacts`, `find_products`, `find_invoices`, `find_sales`, `find_purchases`, `find_accounts`, `find_journal_entries`, `find_inbox`, `get_report` (`result`, `balance`, `receivables`, `payables`, `product_sales`). 13 integrasjonstester mot testforetaket er grønne. Verifisert fra claude.ai i produksjon, alle kall ok.
 
 ## 3. Låste beslutninger
 
@@ -392,6 +393,7 @@ Funn om Claude som MCP-klient (16.10.2026, kilder: claude.com/docs/connectors/bu
 - Claude støtter både CIMD og DCR. CIMD brukes når metadata har `client_id_metadata_document_supported: true` og `none` i `token_endpoint_auth_methods_supported`. Claudes client_id: `https://claude.ai/oauth/mcp-oauth-client-metadata`, Claude Code: `https://claude.ai/oauth/claude-code-client-metadata`.
 - Krav: S256 PKCE, RFC 8707 `resource`, 401 med `WWW-Authenticate: Bearer resource_metadata=…`, svar innen 10 s (30 s ved fornyelse). Grense ca. 150 000 tegn per verktøysvar og 240 s per kall.
 - Katalogkrav: `title` og `readOnlyHint`/`destructiveHint` på alle verktøy, navn ≤ 64 tegn, lesing og skriving separat. Connectors som flytter penger godtas ikke. `register_payment` registrerer bare betaling i regnskapet, men formuleringen bør gjøre det tydelig.
+- **Bufret verktøyliste:** etter en deploy med nye verktøy henter claude.ai på web listen på nytt i en ny samtale. En Claude Code-økt beholder den gamle listen, også etter `/mcp` → koble til på nytt (målt 16.10.2026). Test nye verktøy i en ny samtale.
 
 ## 10. Byggeplan
 
