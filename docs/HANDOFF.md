@@ -48,6 +48,7 @@ Bygget:
 
 - [x] M0 Repo-oppsett (16.10.2026).
 - [x] M1 Auth, samtykkeside, deploy og `list_companies` (16.10.2026). Verifisert ende til ende fra Claude mot testforetaket «Fiken-demo - Slott og fly AS».
+- [x] M2 Fiken-klient, `FikenUserQueue`, øre ↔ kroner og feilhåndtering (16.10.2026). Deployet og verifisert med `list_companies`.
 
 ## 3. Låste beslutninger
 
@@ -85,6 +86,7 @@ Godkjent av Adrian 16.10.2026.
 | Kø-nøkkel | SHA-256 av normalisert e-post fra `GET /user`. | Fiken gir ingen bruker-ID. |
 | Git | Commit og push direkte til `main` til M8 er ferdig. Deretter branch og PR. Ingen attribusjonslinjer. | Adrians valg. |
 | Fiken-klient | `openapi-fetch` over de genererte typene, med `FikenTransport` som fetch. Mellomvare avviser manglende eller tomme sti-parametere (biblioteket lar dem ellers stå som `{navn}` i URL-en) og kaster `FikenApiError` ved feil. | Alle 189 operasjoner typet rett fra spec-en med lite egen kode. Adrians valg (M2). |
+| Kø-regler | Ligger i core som `FikenScheduler` (serialisering, 300 ms mellom kall, backoff ved 429, circuit breaker etter tre 429 på rad, ingen retry av skrivekall). `FikenUserQueue` kjører den og lagrer circuit breaker-tilstanden. Svar krysser RPC som enkle data. | Testbart uten Cloudflare og gjenbrukbart for andre verter. |
 
 ## 4. Arkitektur
 
