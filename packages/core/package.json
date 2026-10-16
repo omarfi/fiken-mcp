@@ -8,13 +8,15 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc",
-    "test": "vitest run",
-    "gen:types": "openapi-typescript ../../spec/fiken-openapi.yaml --output src/fiken/types.gen.ts"
+    "build": "tsc && tsc -p test",
+    "typecheck": "tsc && tsc -p test",
+    "test": "vitest run --exclude 'test/integration/**'",
+    "gen:types": "openapi-typescript ../../spec/fiken-openapi.yaml --output src/fiken/types.gen.ts",
+    "test:integration": "vitest run test/integration --no-file-parallelism"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "2.3.1",
+    "@types/node": "^26.6.5",
     "openapi-typescript": "^7.13.0",
     "vitest": "^5.0.3"
   },

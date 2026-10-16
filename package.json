@@ -16,7 +16,8 @@
     "gen:types": "pnpm --filter @fiken-mcp/core run gen:types",
     "spec:update": "curl -fsSL https://api.fiken.no/api/v2/docs/swagger.yaml -o spec/fiken-openapi.yaml && pnpm gen:types",
     "dev": "pnpm --filter @fiken-mcp/cloudflare run dev",
-    "deploy": "pnpm --filter @fiken-mcp/cloudflare run deploy"
+    "deploy": "pnpm --filter @fiken-mcp/cloudflare run deploy",
+    "test:integration": "pnpm --filter @fiken-mcp/core run test:integration"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

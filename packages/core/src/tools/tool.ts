@@ -7,6 +7,8 @@ export type AccessLevel = "read" | "write";
 
 export interface ToolContext {
   fiken: FikenClient;
+  /** Today's date in Norway, YYYY-MM-DD. Injected so tests can fix it. */
+  today: string;
 }
 
 export interface ToolDefinition<Input extends z.ZodObject = z.ZodObject> {
@@ -24,6 +26,8 @@ export interface ToolDefinition<Input extends z.ZodObject = z.ZodObject> {
 export function defineTool<Input extends z.ZodObject>(tool: ToolDefinition<Input>): ToolDefinition<Input> {
   return tool;
 }
+
+export const READ_ONLY: ToolAnnotations = { readOnlyHint: true, openWorldHint: false };
 
 /** A successful result: compact JSON for the model, the same object as structured content. */
 export function jsonResult(data: Record<string, unknown>): CallToolResult {

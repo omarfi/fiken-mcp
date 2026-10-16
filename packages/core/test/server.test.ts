@@ -60,3 +60,14 @@ describe("handleMcpRequest", () => {
     expect(body.result.instructions).toContain(SERVER_DISPLAY_NAME);
   });
 });
+
+describe("token budget", () => {
+  // HANDOFF section 11: all 23 tool definitions under about 7,000 tokens, so about 300 per tool.
+  // Estimated at 3.5 characters per token for Norwegian JSON; measure in MCP Inspector for the real number.
+  it("keeps tool definitions at about 300 tokens each on average", async () => {
+    const client = await connect(new MockTransport(() => json([])), { access: "write" });
+    const { tools } = await client.listTools();
+    const tokens = JSON.stringify(tools).length / 3.5;
+    expect(tokens / tools.length).toBeLessThanOrEqual(300);
+  });
+});

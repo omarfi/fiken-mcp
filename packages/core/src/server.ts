@@ -3,6 +3,7 @@ import type { FikenClient } from "./fiken/client.ts";
 import { FikenApiError, FikenTransportError } from "./fiken/errors.ts";
 import { INSTRUCTIONS } from "./instructions.ts";
 import { SERVER_DISPLAY_NAME, SERVER_NAME, SERVER_VERSION } from "./server-info.ts";
+import { todayInNorway, ToolError } from "./tools/common.ts";
 import { TOOLS } from "./tools/index.ts";
 import { errorResult, type AccessLevel, type ToolDefinition } from "./tools/tool.ts";
 
@@ -21,6 +22,8 @@ export interface FikenServerOptions {
   fiken: FikenClient;
   access: AccessLevel;
   onToolCall?: (event: ToolCallEvent) => void;
+  /** Today's date in Norway, YYYY-MM-DD. Defaults to the real date; tests fix it. */
+  today?: () => string;
   /** Called with unexpected errors. The model only gets a generic message. */
   onError?: (error: unknown) => void;
 }
@@ -62,10 +65,14 @@ function registerTool(server: McpServer, tool: ToolDefinition, options: FikenSer
         options.onToolCall?.({ tool: tool.name, company, outcome, fikenStatus, ...(failure ? { failure } : {}), durationMs: Date.now() - started });
 
       try {
-        const result = await tool.handler(input, { fiken: options.fiken });
+        const result = await tool.handler(input, { fiken: options.fiken, today: options.today?.() ?? todayInNorway() });
         report(result.isError ? "tool_error" : "ok");
         return result;
       } catch (error) {
+        if (error instanceof ToolError) {
+          report("tool_error");
+          return errorResult(error.message);
+        }
         if (error instanceof FikenApiError) {
           report("fiken_error", error.status);
           return errorResult(error.message);
