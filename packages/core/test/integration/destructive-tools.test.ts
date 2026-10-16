@@ -70,8 +70,14 @@ describe.skipIf(!enabled)("destructive tools against the test company", () => {
       type: "application/pdf",
       bytes: pdf.buffer,
     });
-    const withSecond = await call<{ purchase: Row }>(client, "find_purchases", { id: finalized.id });
-    expect(withSecond.purchase).toMatchObject({ attachments: [expect.anything(), expect.anything()] });
+    // And one from the inbox, as when a card purchase from the bank needs its receipt.
+    const inboxName = `kvittering-3 ${String(finalized.id)}.pdf`;
+    await uploadAttachment(new FikenClient(transport()), { companySlug: TEST_COMPANY, type: "inbox" }, { name: inboxName, type: "application/pdf", bytes: pdf.buffer });
+    const { documents } = await call<{ documents: Row[] }>(client, "find_inbox", { query: inboxName });
+    await call(client, "create_upload_link", { target_type: "purchase", target_id: finalized.id, inbox_document_id: documents[0]?.id });
+    const withReceipts = await call<{ purchase: Row }>(client, "find_purchases", { id: finalized.id });
+    expect(withReceipts.purchase).toMatchObject({ attachments: [expect.anything(), expect.anything(), expect.anything()] });
+    await transport().send({ method: "DELETE", path: `${PREFIX}/inbox/${String(documents[0]?.id)}` });
 
     const paid = await call<{ purchase: Row }>(client, "register_payment", {
       target_type: "purchase",
@@ -87,7 +93,7 @@ describe.skipIf(!enabled)("destructive tools against the test company", () => {
       arguments: { company: TEST_COMPANY, target_type: "purchase", target_id: finalized.id, date: TODAY, amount: 1, account: "1920:10001" },
     });
     expect(JSON.stringify(again.content)).toContain("allerede betalt");
-  });
+  }, 30_000);
 
   it("sale: unpaid draft, finalize, pay, then annul", async () => {
     const { draft } = await call<{ draft: Row }>(client, "save_sale_draft", {

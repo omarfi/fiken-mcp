@@ -115,6 +115,24 @@ describe("find_invoices", () => {
   });
 });
 
+describe("find_purchases", () => {
+  it("finds booked purchases without a receipt across Fiken's pages, newest first", async () => {
+    const page = (offset: number) =>
+      Array.from({ length: 100 }, (_, index) => ({ purchaseId: offset + index, purchaseAttachments: [{ filename: "kvittering.pdf" }] }));
+    const lastPage = [
+      { purchaseId: 200, date: "2026-09-02", purchaseAttachments: [] },
+      { purchaseId: 201, deleted: true },
+      { purchaseId: 202, date: "2026-09-01" },
+    ];
+    const transport = routes({ "/purchases": (request: FikenHttpRequest) => [page(0), page(100), lastPage][Number(query(request).get("page"))] }, { "Fiken-Api-Result-Count": "203" });
+    const result = await run(transport, "find_purchases", { company: COMPANY, missing_receipt: true, from: "2026-01-01" });
+    expect(result.structuredContent).toMatchObject({ purchases: [{ id: 200, attachments: 0 }, { id: 202, attachments: 0 }], paging: { total: 2, more: false } });
+    expect(transport.requests).toHaveLength(3);
+    expect(query(transport.requests[0]).get("sortBy")).toBe("date desc");
+    expect(query(transport.requests[0]).get("dateGe")).toBe("2026-01-01");
+  });
+});
+
 describe("find_journal_entries", () => {
   const entries = [
     { journalEntryId: 1, date: "2026-01-02", description: "a", lines: [{ account: "1500:10001", amount: 100 }, { account: "3000", amount: -100 }] },

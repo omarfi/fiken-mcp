@@ -23,7 +23,7 @@ Hvert foretak må ha Fikens API-tillegg. Du kan trekke tilbake tilgangen når so
 
 **Lese**
 - Foretak, kunder og leverandører, produkter
-- Fakturaer, kreditnotaer, salg og kjøp, også utkast
+- Fakturaer, kreditnotaer, salg og kjøp, også utkast. Finne kjøp som mangler kvittering, for eksempel kortkjøp fra superføring
 - Kontoplan, saldo, bankkontoer, bilag og innboks
 - Rapporter: resultat, balanse, kundefordringer, leverandørgjeld, salg per produkt
 - Hjelp til å forstå tall: MVA per termin, lønn og trekk per måned, og kontroll av bankkonto
@@ -33,7 +33,7 @@ Hvert foretak må ha Fikens API-tillegg. Du kan trekke tilbake tilgangen når so
 - Opprette og endre kunder og leverandører. Navn og adresse hentes fra Enhetsregisteret, og den stopper hvis kontakten allerede finnes.
 - Opprette og endre produkter
 - Lage utkast til kjøp, salg, faktura, kreditnota og tilbud
-- Gi deg en lenke der du laster opp kvittering eller bilag
+- Gi deg en lenke der du laster opp kvittering eller bilag, eller legge et dokument fra innboksen på et kjøp eller salg
 
 **Bokføre og sende** (assistenten skal alltid be deg bekrefte først)
 - Gjøre et utkast endelig, slik at det bokføres

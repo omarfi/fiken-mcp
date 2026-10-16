@@ -63,24 +63,42 @@ export async function uploadAttachment(fiken: FikenClient, target: UploadTarget,
     await fiken.api.POST("/companies/{companySlug}/inbox", { params: { path: { companySlug } }, ...init });
     return;
   }
+  await postAttachment(fiken, target, {}, init);
+}
 
-  const id = target.id;
-  if (id === undefined) throw new Error("Upload target needs an id");
+/**
+ * Puts a document from the Fiken inbox on the target. Fiken marks it as used, and it stays used even
+ * if the attachment is removed again (measured).
+ */
+export async function attachInboxDocument(fiken: FikenClient, target: UploadTarget, inboxDocumentId: number): Promise<void> {
+  // Fiken answers 415 without a multipart body, even when the file comes from the inbox (measured).
+  await postAttachment(fiken, target, { inboxDocumentId }, { body: new FormData() as never });
+}
+
+interface AttachmentBody {
+  body: never;
+  bodySerializer?: (raw: unknown) => BodyInit;
+  headers?: Record<string, string>;
+}
+
+async function postAttachment(fiken: FikenClient, target: UploadTarget, query: { inboxDocumentId?: number }, init: AttachmentBody): Promise<void> {
+  const { companySlug, id } = target;
+  if (target.type === "inbox" || id === undefined) throw new Error("Attachment target needs a draft, purchase or sale id");
   // Booked purchases and sales refuse an attachment without one of these flags: 400 "Either
   // attachToPayment or attachToSale must be specified" (measured). A receipt documents the purchase.
-  const query = { attachToSale: true };
+  const booked = { ...query, attachToSale: true };
   switch (target.type) {
     case "purchase_draft":
-      await fiken.api.POST("/companies/{companySlug}/purchases/drafts/{draftId}/attachments", { params: { path: { companySlug, draftId: id } }, ...init });
+      await fiken.api.POST("/companies/{companySlug}/purchases/drafts/{draftId}/attachments", { params: { path: { companySlug, draftId: id }, query }, ...init });
       return;
     case "sale_draft":
-      await fiken.api.POST("/companies/{companySlug}/sales/drafts/{draftId}/attachments", { params: { path: { companySlug, draftId: id } }, ...init });
+      await fiken.api.POST("/companies/{companySlug}/sales/drafts/{draftId}/attachments", { params: { path: { companySlug, draftId: id }, query }, ...init });
       return;
     case "purchase":
-      await fiken.api.POST("/companies/{companySlug}/purchases/{purchaseId}/attachments", { params: { path: { companySlug, purchaseId: id }, query }, ...init });
+      await fiken.api.POST("/companies/{companySlug}/purchases/{purchaseId}/attachments", { params: { path: { companySlug, purchaseId: id }, query: booked }, ...init });
       return;
     case "sale":
-      await fiken.api.POST("/companies/{companySlug}/sales/{saleId}/attachments", { params: { path: { companySlug, saleId: id }, query }, ...init });
+      await fiken.api.POST("/companies/{companySlug}/sales/{saleId}/attachments", { params: { path: { companySlug, saleId: id }, query: booked }, ...init });
       return;
   }
 }

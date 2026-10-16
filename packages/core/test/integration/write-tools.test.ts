@@ -103,7 +103,8 @@ describe.skipIf(!token)("write tools against the test company", () => {
     const inboxId = Number(uploaded.headers.get("location")?.split("/").at(-1));
     cleanup.push(`/inbox/${inboxId}`);
 
-    const attached = await call<{ draft: { attachments?: Row[] } }>(client, "save_purchase_draft", { id, inbox_document_id: inboxId });
+    await call(client, "create_upload_link", { target_type: "purchase_draft", target_id: id, inbox_document_id: inboxId });
+    const attached = await call<{ draft: { attachments?: Row[] } }>(client, "find_purchases", { status: "draft", id });
     expect(attached.draft.attachments).toHaveLength(1);
   });
 
