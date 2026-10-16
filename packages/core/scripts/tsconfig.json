@@ -1,0 +1,8 @@
+{
+  // Build scripts run in Node and may use Node APIs.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["."]
+}

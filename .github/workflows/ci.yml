@@ -22,7 +22,7 @@ jobs:
       - run: pnpm build
       - run: pnpm lint
       - run: pnpm test
-      - name: Generated types match the spec
+      - name: Generated types and gateway match the spec
         run: |
           pnpm gen:types
-          git diff --exit-code packages/core/src/fiken/types.gen.ts
+          git diff --exit-code packages/core/src/fiken/types.gen.ts packages/core/src/gateway/ops.gen.ts

@@ -38,6 +38,19 @@ export class FikenClient {
     this.api.use(requirePathParams, throwOnError);
   }
 
+  /**
+   * A GET whose path is only known at run time: the gateway's allowlisted operations. Always GET,
+   * and path parameters go through the same encoding and checks as typed calls.
+   */
+  async getByTemplate(
+    path: string,
+    params: { path: Record<string, string | number>; query: Record<string, string | number | boolean> },
+  ): Promise<{ data: unknown; response: Response }> {
+    const get = this.api.GET as unknown as (path: string, init: { params: typeof params }) => Promise<{ data?: unknown; response: Response }>;
+    const { data, response } = await get(path, { params });
+    return { data, response };
+  }
+
   async listCompanies(): Promise<Page<Company>> {
     const { data, response } = await this.api.GET("/companies", {
       params: { query: { page: 0, pageSize: MAX_PAGE_SIZE, sortBy: "name asc" } },

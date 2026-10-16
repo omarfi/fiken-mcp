@@ -1,3 +1,4 @@
+import { exploreApi } from "./explore-api.ts";
 import { findAccounts } from "./find-accounts.ts";
 import { findContacts } from "./find-contacts.ts";
 import { findInbox } from "./find-inbox.ts";
@@ -8,6 +9,7 @@ import { findPurchases } from "./find-purchases.ts";
 import { findSales } from "./find-sales.ts";
 import { getReport } from "./get-report.ts";
 import { listCompanies } from "./list-companies.ts";
+import { readApi } from "./read-api.ts";
 import type { ToolDefinition } from "./tool.ts";
 
 export const TOOLS: readonly ToolDefinition[] = [
@@ -21,4 +23,6 @@ export const TOOLS: readonly ToolDefinition[] = [
   findJournalEntries,
   findInbox,
   getReport,
+  exploreApi,
+  readApi,
 ];
