@@ -67,7 +67,7 @@ Vilkår, personvernerklæring og veiledning ligger på [wollums.no](https://woll
 
 Kildekoden er åpen under Apache-2.0. Se [LICENSE](LICENSE) og [NOTICE](NOTICE).
 
-- `packages/core`: verktøyene, Fiken-klienten og MCP-serveren. Plattformuavhengig, slik at den kan brukes i andre miljøer, for eksempel av Fiken selv.
+- `packages/core`: verktøyene, Fiken-klienten og MCP-serveren. Plattformuavhengig, slik at den kan brukes i andre miljøer, for eksempel av Fiken selv. Se [packages/core/README.md](packages/core/README.md) for hvordan den bygges inn.
 - `apps/cloudflare`: Cloudflare Worker med OAuth, samtykkeside, opplastingsside og køen som holder seg innenfor Fikens grenser (ett kall om gangen, maks fire i sekundet).
 - `spec/fiken-openapi.yaml`: Fikens OpenAPI-spesifikasjon. Typer og tillatte leseoperasjoner genereres fra den.
 - `docs/HANDOFF.md`: spesifikasjon, beslutninger og målinger mot Fiken-APIet.
