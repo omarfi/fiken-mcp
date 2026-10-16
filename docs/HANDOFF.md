@@ -90,6 +90,7 @@ Godkjent av Adrian 16.10.2026.
 | Fiken-klient | `openapi-fetch` over de genererte typene, med `FikenTransport` som fetch. Mellomvare avviser manglende eller tomme sti-parametere (biblioteket lar dem ellers stå som `{navn}` i URL-en) og kaster `FikenApiError` ved feil. | Alle 189 operasjoner typet rett fra spec-en med lite egen kode. Adrians valg (M2). |
 | Kø-regler | Ligger i core som `FikenScheduler` (serialisering, 300 ms mellom kall, backoff ved 429, circuit breaker etter tre 429 på rad, ingen retry av skrivekall). `FikenUserQueue` kjører den og lagrer circuit breaker-tilstanden. Svar krysser RPC som enkle data. | Testbart uten Cloudflare og gjenbrukbart for andre verter. |
 | Rekkefølge | `find_invoices`, `find_sales` og `find_journal_entries` viser nyeste først, også der Fiken bare gir eldste først. De leser totalen og henter de én eller to Fiken-sidene som har de nyeste (1–3 kall). Kontosøk i bilag går fra siste side bakover. `read_api` sier hvilken side som har de nyeste. | «De siste fakturaene» skal være riktig uten at modellen må bla. Adrians valg (etter M4). |
+| Kreditering av faktura | Eget destruktivt verktøy `credit_invoice` i M6 (`POST /creditNotes/full` eller `/partial`), siden et kreditnota-utkast ikke kan peke på en faktura. `save_invoice_draft` lager bare uavhengige kreditnota-utkast. Totalt 24 verktøy. | Vanlig behov, og ren semantikk. Adrians valg (før M5). |
 
 ## 4. Arkitektur
 
@@ -348,7 +349,8 @@ Avklar mot testforetaket underveis, og oppdater dette dokumentet med svarene.
   - Svar (spec): nei. Bare `bankAccounts` og `bankBalances`. `bank_check` begrenses til saldoer og posteringer.
 - [x] **Scopes:** Skiller Fiken OAuth mellom lese- og skrivetilgang?
   - Svar (spec): nei, `scopes: {}`. Tilgangsnivået håndheves bare hos oss.
-- [ ] **PUT:** Erstatter `PUT` hele objektet? Gjelder kontakter, produkter og utkast.
+- [x] **PUT:** Erstatter `PUT` hele objektet? Gjelder kontakter, produkter og utkast.
+  - Målt 16.10.2026: ja. E-post og telefon på en kontakt, og forfallsdato, leverandør og fakturanummer på et kjøpsutkast, forsvant når de ikke var med i `PUT`. `Location` peker på ressursen for kontakter og utkast. `DELETE` på en kontakt uten bilag gir `204`.
 - [x] **Location:** Returnerer `create…`-kallene ID-en til det nye dokumentet?
   - Svar (spec): ja, «For successful POSTs/PUTs/PATCHs a Location header is given in all cases». Body er tom, så vi leser tilbake via Location.
   - Målt 16.10.2026: `POST /generalJournalEntries` gir `201` med tom body, og `Location` peker på `/transactions/{id}`, ikke på bilaget som spec-en sier. Les tilbake via Location, ikke via antatt sti.
