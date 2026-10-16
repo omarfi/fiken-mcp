@@ -3,7 +3,9 @@ import { MAX_PAGE_SIZE, type FikenClient } from "../fiken/client.ts";
 import type { components } from "../fiken/types.gen.ts";
 import { oreToKroner } from "../money.ts";
 import { checkPeriod, companyInput, dateInput, dayBefore, fetchPages, kr, resolveCompany, ToolError } from "./common.ts";
+import { bankCheck, payrollReport, vatReport } from "./derived-reports.ts";
 import { defineTool, jsonResult, READ_ONLY } from "./tool.ts";
+import { accountInput } from "./write-common.ts";
 
 type AccountBalance = components["schemas"]["accountBalance"];
 
@@ -14,13 +16,14 @@ export const getReport = defineTool({
   access: "read",
   title: "Rapporter",
   description:
-    "Oversikter i kroner. type: result (resultat, standard hittil i år), balance (på til-datoen), receivables (kundefordringer per kunde), " +
-    "payables (leverandørgjeld), product_sales (salg per produkt). Ikke MVA-melding eller årsregnskap. Ved tvil: anbefal regnskapsfører.",
+    "Oversikter i kroner. Fra kontoene: vat (MVA per termin), payroll (lønn og trekk per måned), bank_check (saldo, duplikater, åpne poster, " +
+    "standard 30 dager). Ikke MVA-melding, A-melding eller avstemming. Ved tvil: anbefal regnskapsfører.",
   inputSchema: z.object({
     company: companyInput,
-    type: z.enum(["result", "balance", "receivables", "payables", "product_sales"]),
+    type: z.enum(["result", "balance", "receivables", "payables", "product_sales", "vat", "payroll", "bank_check"]),
     from: dateInput("Fra og med (ÅÅÅÅ-MM-DD), standard 1. januar").optional(),
     to: dateInput("Til og med, standard i dag").optional(),
+    bank_account: accountInput("For bank_check").optional(),
   }),
   annotations: READ_ONLY,
   async handler(input, { fiken, today }) {
@@ -31,6 +34,13 @@ export const getReport = defineTool({
     const balances = (date: string, fromAccount: number, toAccount: number) => accountBalances(fiken, companySlug, date, fromAccount, toAccount);
 
     switch (input.type) {
+      case "vat":
+        return jsonResult(await vatReport(fiken, companySlug, from, to));
+      case "payroll":
+        return jsonResult(await payrollReport(fiken, companySlug, from, to));
+      case "bank_check":
+        return jsonResult(await bankCheck(fiken, companySlug, input.from ?? daysBefore(to, 30), to, input.bank_account));
+
       case "result": {
         if (from.slice(0, 4) !== to.slice(0, 4)) {
           throw new ToolError("Resultatet regnes innenfor ett kalenderår, fordi Fiken nullstiller resultatkontoene ved årsskiftet. Del perioden opp per år.");
@@ -192,6 +202,12 @@ function balanceReport(rows: AccountBalance[], resultAccounts: AccountBalance[])
 function inRange(code: string | undefined, group: Group): boolean {
   const main = Number((code ?? "").slice(0, 4));
   return main >= group.from && main <= group.to;
+}
+
+function daysBefore(date: string, days: number): string {
+  const day = new Date(`${date}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() - days);
+  return day.toISOString().slice(0, 10);
 }
 
 function round(value: number): number {

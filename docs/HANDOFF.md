@@ -53,6 +53,7 @@ Bygget:
 - [x] M4 Gateway (16.10.2026): `explore_api` og `read_api` over 51 `GET`-operasjoner generert fra spec-en. Alle 131 operasjoner som ikke er `GET` avvises i test. Verifisert fra claude.ai, inkludert norsk melding for modul som ikke er aktivert (402).
 - [x] M5 Reversible skriveverktøy (16.10.2026): `save_contact` (Enhetsregisteret, duplikatsjekk), `save_product`, `save_invoice_draft`, `save_purchase_draft`, `save_sale_draft`. 6 skrivende integrasjonstester rydder etter seg. Verifisert fra claude.ai: duplikat stoppet, kjøp koblet til leverandør via org.nr., netto regnet fra brutto, felter beholdt ved endring.
 - [x] M6 Destruktive verktøy og opplastingslenke (16.10.2026): `finalize_draft`, `delete_draft`, `register_payment`, `create_journal_entry`, `credit_invoice`, `send_document`, `create_upload_link` med opplastingsside. Kjøps-, salgs-, bilags- og fakturaflyt bokført og annullert i testforetaket. `send_document` er bare enhetstestet, siden en ekte test sender e-post.
+- [x] M7 Avledede rapporter (16.10.2026): `get_report` `vat` (per termin etter foretakets MVA-type, uten MVA-oppgjør og annullerte bilag), `payroll` (per måned, påløpt og betalt trekk og arbeidsgiveravgift), `bank_check` (saldo mot bank, mulige duplikater, åpne poster med samme beløp). Verifisert mot saldoene i testforetaket. Sammenligning med Fikens egen MVA-rapport i webappen gjenstår for Adrian, siden den ikke finnes i API-et.
 
 ## 3. Låste beslutninger
 
@@ -346,7 +347,8 @@ Du er koblet til Fiken via «Fiken av Wollum AS».
 Avklar mot testforetaket underveis, og oppdater dette dokumentet med svarene.
 
 - [ ] **MVA:** Fiken-APIet ser ikke ut til å ha et endepunkt for MVA-melding. Stemmer `get_report` `vat`, beregnet fra MVA-kontoene, med Fikens egen MVA-melding?
-  - Spec (16.10.2026): bekreftet, ingen MVA-endepunkt. Avstemming mot Fikens rapport gjenstår (M7).
+  - Spec (16.10.2026): bekreftet, ingen MVA-endepunkt.
+  - M7 (16.10.2026): `vat` summert per termin stemmer med saldoene på 2700–2719 i testforetaket (4. termin: 75 kr utgående, 100 kr inngående; 5. termin: 892,50 kr utgående). Sammenligning med MVA-rapporten i Fiken gjenstår.
 - [x] **Lønn:** Finnes lønnsdata i APIet, eller bare via kontoene?
   - Svar (spec): bare via kontoene. Ingen lønnsendepunkt.
 - [x] **Banklinjer:** Finnes uavstemte banktransaksjoner i APIet? Uten dem kan `bank_check` bare sammenligne saldoer og posteringer.

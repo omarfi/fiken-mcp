@@ -164,6 +164,35 @@ describe.skipIf(!token)("read tools against the test company", () => {
     expect(Array.isArray(report.products)).toBe(true);
   });
 
+  it("get_report vat sums the VAT accounts per termin", async () => {
+    // The test company started in 2026 and has no VAT settlement, so the year's VAT equals the year-end balances.
+    const balances = await raw<{ code: string; balance: number }[]>("/accountBalances?date=2026-12-31&fromAccount=2700&toAccount=2719");
+    const total = (from: number, to: number) => balances.filter((row) => Number(row.code.slice(0, 4)) >= from && Number(row.code.slice(0, 4)) <= to).reduce((sum, row) => sum + row.balance, 0);
+    const report = await call<{ vatType: string; termins: { outgoing: number; incoming: number; toPay: number; termin: string }[] }>(client, "get_report", {
+      type: "vat",
+      from: "2026-01-01",
+      to: "2026-12-31",
+    });
+    expect(report.vatType).toBe("bi-monthly");
+    expect(report.termins.every((termin) => /^\d\. termin 2026$/.test(termin.termin))).toBe(true);
+    expect(report.termins.reduce((sum, termin) => sum + termin.outgoing, 0)).toBeCloseTo(-total(2700, 2709) / 100, 2);
+    expect(report.termins.reduce((sum, termin) => sum + termin.incoming, 0)).toBeCloseTo(total(2710, 2719) / 100, 2);
+  });
+
+  it("get_report payroll says there is no payroll when there is none", async () => {
+    const report = await call<{ months: unknown[]; note: string }>(client, "get_report", { type: "payroll" });
+    expect(report.months).toEqual([]);
+    expect(report.note).toContain("Ingen lønnsposteringer");
+  });
+
+  it("get_report bank_check compares the bank account with the accounts", async () => {
+    const [balance] = await raw<{ balance: number }[]>("/accountBalances?date=2026-10-16&fromAccount=1920&toAccount=1920");
+    const report = await call<{ bankAccounts: Row[] }>(client, "get_report", { type: "bank_check", bank_account: "1920:10001", from: "2026-01-01" });
+    expect(report.bankAccounts).toEqual([expect.objectContaining({ account: "1920:10001", balanceInAccounts: (balance?.balance ?? 0) / 100 })]);
+    // The annulled test payments cancel out, so they are neither postings nor duplicates.
+    expect(JSON.stringify(report)).not.toContain("MCP-test");
+  });
+
   it("asks which company when the user has several and none is given", async () => {
     // The personal API token reaches several companies, so leaving out company must not pick one.
     const result = await client.callTool({ name: "find_contacts", arguments: {} });
