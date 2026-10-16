@@ -44,7 +44,10 @@ Gjort av Adrian:
 - [x] Testforetak er opprettet i Fiken.
 - [x] Repoet `wollum-as/fiken-mcp` er opprettet med Apache-2.0.
 
-Ingen kode er skrevet ennå.
+Bygget:
+
+- [x] M0 Repo-oppsett (16.10.2026).
+- [x] M1 Auth, samtykkeside, deploy og `list_companies` (16.10.2026). Verifisert ende til ende fra Claude mot testforetaket «Fiken-demo - Slott og fly AS».
 
 ## 3. Låste beslutninger
 
@@ -66,6 +69,21 @@ Ingen kode er skrevet ennå.
 | Dokumentasjon for modellen | Server-`instructions` peker til hjelp.fiken.no, kontohjelp.fiken.no og Skatteetaten. Se seksjon 8. |
 
 README skal si tydelig at prosjektet ikke er tilknyttet Fiken AS. Ikke bruk Fikens logo.
+
+### Beslutninger tatt underveis
+
+Godkjent av Adrian 16.10.2026.
+
+| Område | Beslutning | Begrunnelse |
+| --- | --- | --- |
+| Klienter | Bare Claude og ChatGPT. Kravet om «andre MCP-klienter» i seksjon 1 gjelder ikke. | Adrians valg. |
+| Klientregistrering | Bare CIMD, ingen DCR. Godtatte klient-ID-er starter med `https://claude.ai/oauth/` eller `https://chatgpt.com/oauth/`. Andre avvises før metadata hentes. | Begge klientene bruker CIMD. Minst angrepsflate. |
+| MCP-lag | MCP-SDK v2 `createMcpHandler` direkte, ikke Cloudflare `agents`. Stateless, ny `McpServer` per request, både 2026-07-28 og 2025-klienter. Ligger i core. | `McpAgent` er deprecated. SDK-en er web-standard, så hele MCP-laget kan flyttes til Fiken. |
+| Tilgangsnivå | OAuth-scopes `fiken:read` og `fiken:write`, valgt på samtykkesiden. «Kun lesing» er forhåndsvalgt. Erstatter «lagres i grant-props» i seksjon 5. | Standard mekanisme, og biblioteket binder samtykke til scopes. |
+| Samtykke | Vises ved hver innlogging, huskes ikke. | Enklest og sikrest. Innlogging skjer sjelden. |
+| Token-levetid | Vårt access token: maks 1 time og minst 5 min kortere enn Fikens. Fiken-tokenet fornyes når det har under 2 timer igjen. Grant utløper etter 30 dager uten bruk. | Et verktøykall møter aldri et utløpt Fiken-token. |
+| Kø-nøkkel | SHA-256 av normalisert e-post fra `GET /user`. | Fiken gir ingen bruker-ID. |
+| Git | Commit og push direkte til `main` til M8 er ferdig. Deretter branch og PR. Ingen attribusjonslinjer. | Adrians valg. |
 
 ## 4. Arkitektur
 
@@ -174,7 +192,7 @@ Serveren er en «MCP proxy server» med fast client ID mot tredjepart, så confu
 
 ### Tilgangsnivå
 
-Samtykkesiden lar brukeren velge «Kun lesing» eller «Lesing og skriving». Valget lagres i grant-props. Skriveverktøyene registreres bare når brukeren har skrivetilgang. Avklar om Fiken OAuth har egne scopes (åpent spørsmål). Hvis ikke, håndheves nivået bare hos oss.
+Samtykkesiden lar brukeren velge «Kun lesing» eller «Lesing og skriving». Valget lagres i grant-props (erstattet 16.10.2026: lagres som OAuth-scopes, se «Beslutninger tatt underveis» i seksjon 3). Skriveverktøyene registreres bare når brukeren har skrivetilgang. Avklar om Fiken OAuth har egne scopes (åpent spørsmål). Hvis ikke, håndheves nivået bare hos oss.
 
 ### Øvrig
 
