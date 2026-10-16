@@ -1,0 +1,3 @@
+# Copy to .dev.vars for `pnpm dev`. Never commit real values.
+FIKEN_CLIENT_ID=
+FIKEN_CLIENT_SECRET=

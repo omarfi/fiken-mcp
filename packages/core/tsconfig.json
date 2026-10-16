@@ -1,4 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Web-standard APIs only (fetch, Request, Response, URL, crypto), available in Node, Workers, Deno and Bun.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+  },
   "include": ["src", "test", "*.ts"]
 }

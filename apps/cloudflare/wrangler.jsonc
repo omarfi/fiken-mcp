@@ -3,9 +3,18 @@
   "name": "fiken-mcp",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
-  "compatibility_flags": ["nodejs_compat"],
+  // global_fetch_strictly_public is required for Client ID Metadata Documents (SSRF protection).
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "fiken.mcp.wollums.no", "custom_domain": true }],
+  "kv_namespaces": [{ "binding": "OAUTH_KV" }],
+  "durable_objects": {
+    "bindings": [{ "name": "FIKEN_USER_QUEUE", "class_name": "FikenUserQueue" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FikenUserQueue"] }],
   "observability": {
     "enabled": true
   }
-  // M1 adds: custom domain fiken.mcp.wollums.no, OAUTH_KV, FikenUserQueue Durable Object.
+  // Secrets: FIKEN_CLIENT_ID, FIKEN_CLIENT_SECRET (wrangler secret put).
 }
