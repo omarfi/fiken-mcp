@@ -401,6 +401,7 @@ Avklar mot testforetaket underveis, og oppdater dette dokumentet med svarene.
 - [ ] **Vedlegg:** Kan vedlegg lastes opp til utkast via API, og hvilke filtyper og størrelser godtas?
   - Spec: ja, `multipart/form-data` til `…/drafts/{id}/attachments`. Filnavn må slutte på .png, .jpeg, .jpg, .gif eller .pdf. I stedet for fil kan man sende `inboxDocumentId` eller `ehfDocumentId`, da trengs ingen opplasting. Maks størrelse står ikke i spec-en.
   - Målt 16.10.2026: vedlegg fra innboksen (`inboxDocumentId`) krever en multipart-body, også uten fil. Uten body svarer Fiken `415`. En liten PDF lastes opp i innboksen med `POST /inbox` (multipart). Maks størrelse er ikke målt.
+  - Målt 16.10.2026: vedlegg på et bokført kjøp eller salg krever `attachToSale` eller `attachToPayment`, ellers `400` («Either attachToPayment or attachToSale must be specified»). Opplastingslenken sender `attachToSale=true`. Et vedlegg fjernes med `uuid`, ikke `identifier` (den gir `400`), og filen blir liggende i arkivet.
 - [ ] **Låste perioder:** Avviser Fiken bilag og kjøp i en periode der MVA-meldingen er levert?
 - [ ] **Sending i test:** `send_document` testes bare mot egen e-post fra testforetaket.
 - [ ] **Gateway-listen:** Hvilke `GET`-operasjoner skal med i `read_api`, og hvordan trimmes svarene?
@@ -434,6 +435,7 @@ Målt mot testforetaket 16.10.2026 (personlig API-nøkkel, se seksjon 12):
 - **Bokføring av faktura:** et fakturautkast uten `bankAccountNumber` gir `500` fra Fiken ved `createInvoice`, ikke en valideringsfeil. `save_invoice_draft` setter foretakets første aktive bankkonto, og `finalize_draft` stopper før kallet hvis den mangler. `Location` etter `createInvoice` peker på `/invoices/{id}`.
 - **Nummerserier:** mangler en nummerserie (kreditnota, tilbud), svarer Fiken `401` eller `409` med «counter not initialized». Det gir nå en egen norsk melding, ikke «logg inn på nytt». Kreditnotaserien i testforetaket er satt til 10000 via API. Tilbudsserien er ikke satt opp.
 - **Kreditnotaer** har negative beløp og ingen referanse tilbake til fakturaen i svaret.
+- **Vedlegg og æøå:** Fiken leser tekstfeltene i multipart som Latin-1 og bruker feltet `filename`, ikke filnavnet i fildelen. UTF-8 fra `FormData` ga «TertiÃ¦r FH.png». Opplastingen bygger derfor multipart selv med Latin-1-felter (målt 16.10.2026 under test fra claude.ai).
 - **Destruktive integrasjonstester** (`FIKEN_DESTRUCTIVE_TESTS=1`) bokfører og annullerer kjøp, salg og bilag. Hver kjøring etterlater én faktura og kreditnotaen som opphever den. Første kjøring 16.10.2026 laget faktura 10007 (kreditert manuelt) og 10008 med kreditnota 10002.
 - **Rekkefølge:** `invoices`, `sales`, `creditNotes`, `journalEntries`, `transactions` og `offers` kommer eldste først og har ingen `sortBy`. `purchases` (`date desc`), `inbox` (`createdDate desc`) og `contacts` kan sorteres. Funnet i test fra claude.ai 16.10.2026.
 

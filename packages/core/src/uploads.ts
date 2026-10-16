@@ -41,38 +41,74 @@ export function checkUpload(file: UploadFile): string | undefined {
   return undefined;
 }
 
-/** Sends the file to its target in Fiken as multipart, which every attachment endpoint takes. */
+/**
+ * Sends the file to its target in Fiken as multipart, which every attachment endpoint takes.
+ *
+ * Fiken reads the text fields as Latin-1 (measured 16.10.2026: "æ" in UTF-8 came out as "Ã¦"), so the
+ * body is built here with Latin-1 text fields instead of with FormData, which always writes UTF-8.
+ */
 export async function uploadAttachment(fiken: FikenClient, target: UploadTarget, file: UploadFile): Promise<void> {
   const problem = checkUpload(file);
   if (problem) throw new Error(problem);
 
-  const form = new FormData();
-  form.set("filename", file.name);
-  form.set("file", new Blob([file.bytes], { type: file.type || "application/octet-stream" }), file.name);
+  const fields: [string, string][] =
+    target.type === "inbox"
+      ? [["name", file.name], ["filename", file.name], ["description", "Lastet opp via Fiken av Wollum AS"]]
+      : [["filename", file.name]];
+  const { body, contentType } = multipart(fields, file);
   const companySlug = target.companySlug;
+  const init = { body: body as never, bodySerializer: (raw: unknown) => raw as BodyInit, headers: { "content-type": contentType } };
 
   if (target.type === "inbox") {
-    form.set("name", file.name);
-    form.set("description", "Lastet opp via Fiken av Wollum AS");
-    await fiken.api.POST("/companies/{companySlug}/inbox", { params: { path: { companySlug } }, body: form as never });
+    await fiken.api.POST("/companies/{companySlug}/inbox", { params: { path: { companySlug } }, ...init });
     return;
   }
 
   const id = target.id;
   if (id === undefined) throw new Error("Upload target needs an id");
-  const body = form as never;
+  // Booked purchases and sales refuse an attachment without one of these flags: 400 "Either
+  // attachToPayment or attachToSale must be specified" (measured). A receipt documents the purchase.
+  const query = { attachToSale: true };
   switch (target.type) {
     case "purchase_draft":
-      await fiken.api.POST("/companies/{companySlug}/purchases/drafts/{draftId}/attachments", { params: { path: { companySlug, draftId: id } }, body });
+      await fiken.api.POST("/companies/{companySlug}/purchases/drafts/{draftId}/attachments", { params: { path: { companySlug, draftId: id } }, ...init });
       return;
     case "sale_draft":
-      await fiken.api.POST("/companies/{companySlug}/sales/drafts/{draftId}/attachments", { params: { path: { companySlug, draftId: id } }, body });
+      await fiken.api.POST("/companies/{companySlug}/sales/drafts/{draftId}/attachments", { params: { path: { companySlug, draftId: id } }, ...init });
       return;
     case "purchase":
-      await fiken.api.POST("/companies/{companySlug}/purchases/{purchaseId}/attachments", { params: { path: { companySlug, purchaseId: id } }, body });
+      await fiken.api.POST("/companies/{companySlug}/purchases/{purchaseId}/attachments", { params: { path: { companySlug, purchaseId: id }, query }, ...init });
       return;
     case "sale":
-      await fiken.api.POST("/companies/{companySlug}/sales/{saleId}/attachments", { params: { path: { companySlug, saleId: id } }, body });
+      await fiken.api.POST("/companies/{companySlug}/sales/{saleId}/attachments", { params: { path: { companySlug, saleId: id }, query }, ...init });
       return;
   }
+}
+
+/** Latin-1 bytes; characters outside Latin-1 become "_". */
+export function latin1(text: string): Uint8Array {
+  return Uint8Array.from([...text].map((char) => {
+    const code = char.codePointAt(0) ?? 0x5f;
+    return code <= 0xff ? code : 0x5f;
+  }));
+}
+
+function multipart(fields: [string, string][], file: UploadFile): { body: Uint8Array; contentType: string } {
+  const boundary = `----fiken-mcp-${crypto.randomUUID()}`;
+  const ascii = (text: string) => new TextEncoder().encode(text);
+  // The part's own filename only needs to be harmless in a header; Fiken shows the "filename" field.
+  const safeName = file.name.replace(/[^\x20-\x7e]|["\\]/g, "_");
+  const parts = [
+    ...fields.flatMap(([name, value]) => [ascii(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n`), latin1(value), ascii("\r\n")]),
+    ascii(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${safeName}"\r\nContent-Type: ${file.type || "application/octet-stream"}\r\n\r\n`),
+    new Uint8Array(file.bytes),
+    ascii(`\r\n--${boundary}--\r\n`),
+  ];
+  const body = new Uint8Array(parts.reduce((length, part) => length + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    body.set(part, offset);
+    offset += part.length;
+  }
+  return { body, contentType: `multipart/form-data; boundary=${boundary}` };
 }

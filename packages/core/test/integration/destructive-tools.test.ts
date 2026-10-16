@@ -64,6 +64,15 @@ describe.skipIf(!enabled)("destructive tools against the test company", () => {
     annul.push(`/purchases/${finalized.id}/delete`);
     expect(finalized.document).toMatchObject({ gross: 125, paid: false, attachments: 1 });
 
+    // A receipt that comes later goes on the booked purchase.
+    await uploadAttachment(new FikenClient(transport()), { companySlug: TEST_COMPANY, type: "purchase", id: finalized.id }, {
+      name: "kvittering-2.pdf",
+      type: "application/pdf",
+      bytes: pdf.buffer,
+    });
+    const withSecond = await call<{ purchase: Row }>(client, "find_purchases", { id: finalized.id });
+    expect(withSecond.purchase).toMatchObject({ attachments: [expect.anything(), expect.anything()] });
+
     const paid = await call<{ purchase: Row }>(client, "register_payment", {
       target_type: "purchase",
       target_id: finalized.id,

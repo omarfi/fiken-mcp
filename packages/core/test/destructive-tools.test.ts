@@ -184,12 +184,27 @@ describe("uploads", () => {
 
   it("sends the file as multipart to the target's attachment endpoint, and refuses other file types", async () => {
     const { transport, sent } = fiken({ [`POST ${BASE}/sales/drafts/6/attachments`]: created(`${BASE}/sales/drafts/6/attachments/1`) });
-    const file = { name: "kvittering.pdf", type: "application/pdf", bytes: new TextEncoder().encode("%PDF-1.4").buffer };
+    const file = { name: "Kvittering æøå.pdf", type: "application/pdf", bytes: new TextEncoder().encode("%PDF-1.4").buffer };
     await uploadAttachment(new FikenClient(transport), { companySlug: COMPANY, type: "sale_draft", id: 6 }, file);
     const request = sent("POST")[0];
     expect(request?.headers?.["content-type"]).toMatch(/^multipart\/form-data; boundary=/);
-    expect(new TextDecoder().decode(request?.body as ArrayBuffer)).toContain('filename="kvittering.pdf"');
+    // Fiken reads text fields as Latin-1 (measured), so the filename field is Latin-1, not UTF-8.
+    const body = new TextDecoder("latin1").decode(request?.body as ArrayBuffer);
+    expect(body).toContain('name="filename"\r\n\r\nKvittering æøå.pdf\r\n');
+    expect(body).toContain('name="file"; filename="Kvittering ___.pdf"');
+    expect(body).toContain("%PDF-1.4");
 
     await expect(uploadAttachment(new FikenClient(transport), { companySlug: COMPANY, type: "inbox" }, { ...file, name: "virus.exe" })).rejects.toThrow("PDF");
+  });
+
+  it("marks an attachment to a booked purchase or sale as documenting it, which Fiken requires", async () => {
+    const { transport, sent } = fiken({
+      [`POST ${BASE}/purchases/4/attachments`]: created(`${BASE}/purchases/4/attachments`),
+      [`POST ${BASE}/sales/30/attachments`]: created(`${BASE}/sales/30/attachments`),
+    });
+    const file = { name: "kvittering.pdf", type: "application/pdf", bytes: new TextEncoder().encode("%PDF-1.4").buffer };
+    await uploadAttachment(new FikenClient(transport), { companySlug: COMPANY, type: "purchase", id: 4 }, file);
+    await uploadAttachment(new FikenClient(transport), { companySlug: COMPANY, type: "sale", id: 30 }, file);
+    expect(sent("POST").map((request) => request.path)).toEqual([`${BASE}/purchases/4/attachments?attachToSale=true`, `${BASE}/sales/30/attachments?attachToSale=true`]);
   });
 });
