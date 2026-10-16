@@ -51,6 +51,7 @@ Bygget:
 - [x] M2 Fiken-klient, `FikenUserQueue`, øre ↔ kroner og feilhåndtering (16.10.2026). Deployet og verifisert med `list_companies`.
 - [x] M3 Leseverktøy (16.10.2026): `find_contacts`, `find_products`, `find_invoices`, `find_sales`, `find_purchases`, `find_accounts`, `find_journal_entries`, `find_inbox`, `get_report` (`result`, `balance`, `receivables`, `payables`, `product_sales`). 13 integrasjonstester mot testforetaket er grønne. Verifisert fra claude.ai i produksjon, alle kall ok.
 - [x] M4 Gateway (16.10.2026): `explore_api` og `read_api` over 51 `GET`-operasjoner generert fra spec-en. Alle 131 operasjoner som ikke er `GET` avvises i test. Verifisert fra claude.ai, inkludert norsk melding for modul som ikke er aktivert (402).
+- [x] M5 Reversible skriveverktøy (16.10.2026): `save_contact` (Enhetsregisteret, duplikatsjekk), `save_product`, `save_invoice_draft`, `save_purchase_draft`, `save_sale_draft`. 6 skrivende integrasjonstester rydder etter seg. Verifisert fra claude.ai: duplikat stoppet, kjøp koblet til leverandør via org.nr., netto regnet fra brutto, felter beholdt ved endring.
 
 ## 3. Låste beslutninger
 
