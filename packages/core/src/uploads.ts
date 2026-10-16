@@ -66,6 +66,9 @@ export async function uploadAttachment(fiken: FikenClient, target: UploadTarget,
 
   const id = target.id;
   if (id === undefined) throw new Error("Upload target needs an id");
+  // Booked purchases and sales refuse an attachment without one of these flags: 400 "Either
+  // attachToPayment or attachToSale must be specified" (measured). A receipt documents the purchase.
+  const query = { attachToSale: true };
   switch (target.type) {
     case "purchase_draft":
       await fiken.api.POST("/companies/{companySlug}/purchases/drafts/{draftId}/attachments", { params: { path: { companySlug, draftId: id } }, ...init });
@@ -74,10 +77,10 @@ export async function uploadAttachment(fiken: FikenClient, target: UploadTarget,
       await fiken.api.POST("/companies/{companySlug}/sales/drafts/{draftId}/attachments", { params: { path: { companySlug, draftId: id } }, ...init });
       return;
     case "purchase":
-      await fiken.api.POST("/companies/{companySlug}/purchases/{purchaseId}/attachments", { params: { path: { companySlug, purchaseId: id } }, ...init });
+      await fiken.api.POST("/companies/{companySlug}/purchases/{purchaseId}/attachments", { params: { path: { companySlug, purchaseId: id }, query }, ...init });
       return;
     case "sale":
-      await fiken.api.POST("/companies/{companySlug}/sales/{saleId}/attachments", { params: { path: { companySlug, saleId: id } }, ...init });
+      await fiken.api.POST("/companies/{companySlug}/sales/{saleId}/attachments", { params: { path: { companySlug, saleId: id }, query }, ...init });
       return;
   }
 }

@@ -401,6 +401,7 @@ Avklar mot testforetaket underveis, og oppdater dette dokumentet med svarene.
 - [ ] **Vedlegg:** Kan vedlegg lastes opp til utkast via API, og hvilke filtyper og størrelser godtas?
   - Spec: ja, `multipart/form-data` til `…/drafts/{id}/attachments`. Filnavn må slutte på .png, .jpeg, .jpg, .gif eller .pdf. I stedet for fil kan man sende `inboxDocumentId` eller `ehfDocumentId`, da trengs ingen opplasting. Maks størrelse står ikke i spec-en.
   - Målt 16.10.2026: vedlegg fra innboksen (`inboxDocumentId`) krever en multipart-body, også uten fil. Uten body svarer Fiken `415`. En liten PDF lastes opp i innboksen med `POST /inbox` (multipart). Maks størrelse er ikke målt.
+  - Målt 16.10.2026: vedlegg på et bokført kjøp eller salg krever `attachToSale` eller `attachToPayment`, ellers `400` («Either attachToPayment or attachToSale must be specified»). Opplastingslenken sender `attachToSale=true`. Et vedlegg fjernes med `uuid`, ikke `identifier` (den gir `400`), og filen blir liggende i arkivet.
 - [ ] **Låste perioder:** Avviser Fiken bilag og kjøp i en periode der MVA-meldingen er levert?
 - [ ] **Sending i test:** `send_document` testes bare mot egen e-post fra testforetaket.
 - [ ] **Gateway-listen:** Hvilke `GET`-operasjoner skal med i `read_api`, og hvordan trimmes svarene?

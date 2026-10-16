@@ -196,4 +196,15 @@ describe("uploads", () => {
 
     await expect(uploadAttachment(new FikenClient(transport), { companySlug: COMPANY, type: "inbox" }, { ...file, name: "virus.exe" })).rejects.toThrow("PDF");
   });
+
+  it("marks an attachment to a booked purchase or sale as documenting it, which Fiken requires", async () => {
+    const { transport, sent } = fiken({
+      [`POST ${BASE}/purchases/4/attachments`]: created(`${BASE}/purchases/4/attachments`),
+      [`POST ${BASE}/sales/30/attachments`]: created(`${BASE}/sales/30/attachments`),
+    });
+    const file = { name: "kvittering.pdf", type: "application/pdf", bytes: new TextEncoder().encode("%PDF-1.4").buffer };
+    await uploadAttachment(new FikenClient(transport), { companySlug: COMPANY, type: "purchase", id: 4 }, file);
+    await uploadAttachment(new FikenClient(transport), { companySlug: COMPANY, type: "sale", id: 30 }, file);
+    expect(sent("POST").map((request) => request.path)).toEqual([`${BASE}/purchases/4/attachments?attachToSale=true`, `${BASE}/sales/30/attachments?attachToSale=true`]);
+  });
 });
