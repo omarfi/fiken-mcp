@@ -1,13 +1,17 @@
+import createClient, { type Client, type Middleware } from "openapi-fetch";
 import { FikenApiError, readFikenMessage } from "./errors.ts";
-import type { FikenTransport } from "./transport.ts";
-import type { components } from "./types.gen.ts";
+import type { FikenTransport, HttpMethod } from "./transport.ts";
+import type { components, paths } from "./types.gen.ts";
 
 export type Company = components["schemas"]["company"];
 
-export type QueryValue = string | number | boolean | undefined;
+/** The typed Fiken API: every path, parameter, body and response comes from the OpenAPI spec. */
+export type FikenApi = Client<paths>;
 
 /** Fiken's maximum page size. */
 export const MAX_PAGE_SIZE = 100;
+
+const BASE_URL = new URL("https://api.fiken.no/api/v2");
 
 export interface Page<T> {
   items: T[];
@@ -15,51 +19,85 @@ export interface Page<T> {
   total: number | undefined;
 }
 
-/** Typed access to the Fiken API v2. All calls go through the injected transport. */
+/**
+ * Access to the Fiken API v2 for one signed-in user. All calls go through the injected transport,
+ * which owns authentication and Fiken's rate limits.
+ *
+ * Non-2xx responses throw `FikenApiError`; a call without a usable response throws
+ * `FikenTransportError`. A successful call therefore always has `response.ok`.
+ */
 export class FikenClient {
-  readonly #transport: FikenTransport;
+  readonly api: FikenApi;
 
   constructor(transport: FikenTransport) {
-    this.#transport = transport;
+    this.api = createClient<paths>({
+      baseUrl: BASE_URL.href,
+      headers: { accept: "application/json" },
+      fetch: (request) => sendThrough(transport, request),
+    });
+    this.api.use(requirePathParams, throwOnError);
   }
 
   async listCompanies(): Promise<Page<Company>> {
-    return this.getPage<Company>("/companies", { page: 0, pageSize: MAX_PAGE_SIZE, sortBy: "name asc" });
-  }
-
-  async getPage<T>(path: string, query: Record<string, QueryValue> = {}): Promise<Page<T>> {
-    const response = await this.#get(path, query);
-    const items = (await response.json()) as T[];
-    const total = Number(response.headers.get("Fiken-Api-Result-Count") ?? Number.NaN);
-    return { items, total: Number.isFinite(total) ? total : undefined };
-  }
-
-  async #get(path: string, query: Record<string, QueryValue>): Promise<Response> {
-    const response = await this.#transport.send({
-      method: "GET",
-      path: withQuery(path, query),
-      headers: { accept: "application/json" },
+    const { data, response } = await this.api.GET("/companies", {
+      params: { query: { page: 0, pageSize: MAX_PAGE_SIZE, sortBy: "name asc" } },
     });
-    if (!response.ok) throw new FikenApiError(response.status, await readFikenMessage(response));
-    return response;
+    return { items: data ?? [], total: resultCount(response) };
   }
 }
 
-/** Builds a path from a template such as `/companies/{companySlug}/contacts/{contactId}`, encoding every parameter. */
-export function fikenPath(template: string, params: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (_, name: string) => {
-    const value = params[name];
-    if (value === undefined) throw new Error(`Missing path parameter: ${name}`);
-    return encodeURIComponent(String(value));
+/** Total count from Fiken's pagination headers. */
+export function resultCount(response: Response): number | undefined {
+  const total = Number(response.headers.get("Fiken-Api-Result-Count") ?? Number.NaN);
+  return Number.isFinite(total) ? total : undefined;
+}
+
+/**
+ * The ID of a resource Fiken just created. Fiken answers a successful POST with an empty body and
+ * a `Location` header pointing at the new resource.
+ */
+export function createdId(response: Response): string | undefined {
+  const location = response.headers.get("Location");
+  if (!location) return undefined;
+  const segment = new URL(location, BASE_URL).pathname.split("/").filter(Boolean).at(-1);
+  return segment === undefined ? undefined : decodeURIComponent(segment);
+}
+
+/**
+ * openapi-fetch leaves a missing path parameter in the URL as `{name}`. Refuse the call instead, and
+ * refuse empty values, which would collapse `/contacts/{id}` into `/contacts/`.
+ */
+const requirePathParams: Middleware = {
+  onRequest({ schemaPath, params }) {
+    for (const [, name] of schemaPath.matchAll(/\{([^}]+)\}/g)) {
+      const value = name === undefined ? undefined : params.path?.[name];
+      if (value === undefined || value === null || value === "") {
+        throw new Error(`Missing path parameter: ${name ?? "?"}`);
+      }
+    }
+    return undefined;
+  },
+};
+
+const throwOnError: Middleware = {
+  async onResponse({ request, response }) {
+    if (!response.ok) {
+      throw new FikenApiError(response.status, await readFikenMessage(response.clone()), { write: request.method !== "GET" });
+    }
+    return undefined;
+  },
+};
+
+async function sendThrough(transport: FikenTransport, request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  if (url.origin !== BASE_URL.origin || !url.pathname.startsWith(`${BASE_URL.pathname}/`)) {
+    throw new Error("Refusing a request outside the Fiken API");
+  }
+  const body = request.body ? await request.arrayBuffer() : undefined;
+  return transport.send({
+    method: request.method as HttpMethod,
+    path: url.pathname.slice(BASE_URL.pathname.length) + url.search,
+    headers: Object.fromEntries(request.headers),
+    ...(body === undefined ? {} : { body }),
   });
-}
-
-function withQuery(path: string, query: Record<string, QueryValue>): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined) search.set(key, String(value));
-  }
-  // URLSearchParams writes spaces as "+"; Fiken documents "%20" (for example `sortBy=name%20asc`).
-  const qs = search.toString().replace(/\+/g, "%20");
-  return qs ? `${path}?${qs}` : path;
 }

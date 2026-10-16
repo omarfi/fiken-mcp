@@ -84,6 +84,7 @@ Godkjent av Adrian 16.10.2026.
 | Token-levetid | Vårt access token: maks 1 time og minst 5 min kortere enn Fikens. Fiken-tokenet fornyes når det har under 2 timer igjen. Grant utløper etter 30 dager uten bruk. | Et verktøykall møter aldri et utløpt Fiken-token. |
 | Kø-nøkkel | SHA-256 av normalisert e-post fra `GET /user`. | Fiken gir ingen bruker-ID. |
 | Git | Commit og push direkte til `main` til M8 er ferdig. Deretter branch og PR. Ingen attribusjonslinjer. | Adrians valg. |
+| Fiken-klient | `openapi-fetch` over de genererte typene, med `FikenTransport` som fetch. Mellomvare avviser manglende eller tomme sti-parametere (biblioteket lar dem ellers stå som `{navn}` i URL-en) og kaster `FikenApiError` ved feil. | Alle 189 operasjoner typet rett fra spec-en med lite egen kode. Adrians valg (M2). |
 
 ## 4. Arkitektur
 

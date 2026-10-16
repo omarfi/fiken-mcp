@@ -1,4 +1,4 @@
-export { FikenClient, fikenPath, MAX_PAGE_SIZE, type Company, type Page } from "./fiken/client.ts";
+export { createdId, FikenClient, MAX_PAGE_SIZE, resultCount, type Company, type FikenApi, type Page } from "./fiken/client.ts";
 export { FikenApiError, FikenTransportError, type FikenFailureKind } from "./fiken/errors.ts";
 export {
   FikenScheduler,

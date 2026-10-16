@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FikenClient, fikenPath } from "../src/fiken/client.ts";
+import { FikenClient } from "../src/fiken/client.ts";
 import { handleMcpRequest, type ToolCallEvent } from "../src/server.ts";
 import { SERVER_DISPLAY_NAME } from "../src/server-info.ts";
 import { TOOLS } from "../src/tools/index.ts";
@@ -58,17 +58,5 @@ describe("handleMcpRequest", () => {
     };
     expect(body.result.serverInfo.title).toBe(SERVER_DISPLAY_NAME);
     expect(body.result.instructions).toContain(SERVER_DISPLAY_NAME);
-  });
-});
-
-describe("fikenPath", () => {
-  it("encodes every path parameter", () => {
-    expect(fikenPath("/companies/{companySlug}/contacts/{contactId}", { companySlug: "a/b?c", contactId: 7 })).toBe(
-      "/companies/a%2Fb%3Fc/contacts/7",
-    );
-  });
-
-  it("refuses a missing parameter", () => {
-    expect(() => fikenPath("/companies/{companySlug}", {})).toThrow("companySlug");
   });
 });
