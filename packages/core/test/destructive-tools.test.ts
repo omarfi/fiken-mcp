@@ -182,6 +182,19 @@ describe("uploads", () => {
     expect(targets).toHaveLength(1);
   });
 
+  it("create_upload_link puts an inbox document on a booked purchase without a link", async () => {
+    const { transport, sent } = fiken({
+      [`GET ${BASE}/purchases/4`]: { purchaseId: 4 },
+      [`POST ${BASE}/purchases/4/attachments`]: created(`${BASE}/purchases/4/attachments`),
+    });
+    const result = await run(transport, "create_upload_link", { target_type: "purchase", target_id: 4, inbox_document_id: 9 });
+    expect(result.structuredContent).toMatchObject({ attached: true });
+    expect(sent("POST").map((request) => request.path)).toEqual([`${BASE}/purchases/4/attachments?inboxDocumentId=9&attachToSale=true`]);
+
+    const toInbox = await run(fiken({}).transport, "create_upload_link", { target_type: "inbox", inbox_document_id: 9 });
+    expect(toInbox.isError).toBe(true);
+  });
+
   it("sends the file as multipart to the target's attachment endpoint, and refuses other file types", async () => {
     const { transport, sent } = fiken({ [`POST ${BASE}/sales/drafts/6/attachments`]: created(`${BASE}/sales/drafts/6/attachments/1`) });
     const file = { name: "Kvittering æøå.pdf", type: "application/pdf", bytes: new TextEncoder().encode("%PDF-1.4").buffer };

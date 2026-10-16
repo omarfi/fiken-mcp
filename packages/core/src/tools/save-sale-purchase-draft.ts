@@ -34,7 +34,6 @@ export const savePurchaseDraft = defineTool({
     lines: draftLinesInput(purchaseVatInput, "Kostnadskonto").optional(),
     paid: z.boolean().optional().describe("Krever payment_account"),
     payment_account: accountInput("F.eks. 1920:10001").optional(),
-    inbox_document_id: fikenId("Vedlegg fra find_inbox").optional(),
   }),
   annotations: REVERSIBLE_WRITE,
   handler: (input, { fiken }) =>
@@ -75,7 +74,6 @@ interface DraftInput {
   lines?: Parameters<typeof draftLine>[0][] | undefined;
   paid?: boolean | undefined;
   payment_account?: string | undefined;
-  inbox_document_id?: number | undefined;
 }
 
 async function saveDraft(fiken: FikenClient, kind: Kind, input: DraftInput) {
@@ -115,15 +113,6 @@ async function saveDraft(fiken: FikenClient, kind: Kind, input: DraftInput) {
     draftId = input.id;
   } else {
     draftId = await postDraft(fiken, kind, companySlug, body);
-  }
-
-  if (input.inbox_document_id !== undefined) {
-    if (kind !== "purchase") throw new ToolError("inbox_document_id gjelder bare kjøp.");
-    // Fiken answers 415 without a multipart body, even when the file comes from the inbox (measured).
-    await fiken.api.POST("/companies/{companySlug}/purchases/drafts/{draftId}/attachments", {
-      params: { path: { companySlug, draftId }, query: { inboxDocumentId: input.inbox_document_id } },
-      body: new FormData() as never,
-    });
   }
 
   const saved = await getDraft(fiken, kind, companySlug, draftId);

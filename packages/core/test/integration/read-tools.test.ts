@@ -90,6 +90,9 @@ describe.skipIf(!token)("read tools against the test company", () => {
     expect(purchases.length).toBeGreaterThan(0);
     const { purchase } = await call<{ purchase: Row }>(client, "find_purchases", { id: purchases[0]?.id });
     expect(purchase).toMatchObject({ id: purchases[0]?.id, gross: purchases[0]?.gross });
+
+    const missing = await call<{ purchases: Row[] }>(client, "find_purchases", { missing_receipt: true });
+    expect(missing.purchases.every((row) => row.attachments === 0)).toBe(true);
   });
 
   it("find_accounts searches the chart of accounts and shows balances and bank accounts", async () => {

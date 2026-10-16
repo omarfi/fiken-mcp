@@ -303,7 +303,7 @@ Oversett Fiken-feil til korte norske meldinger som modellen kan handle på, for 
 | `find_products` | Produkter med pris og MVA-kode | `query`, `id`, `active` | `/products` |
 | `find_invoices` | Fakturaer og kreditnotaer, med totalsum | `type` (invoice/credit_note), `status` (draft/unpaid/overdue/paid/all), `customer_id`, `from`, `to`, `id` | `/invoices`, `/invoices/drafts`, `/creditNotes`, `/creditNotes/drafts` |
 | `find_sales` | Annet salg (kontant, Vipps o.l.), med utkast og betalinger | `status`, `from`, `to`, `id` | `/sales`, `/sales/drafts`, `/sales/{id}/payments` |
-| `find_purchases` | Kjøp og kostnader | `status` (draft/unpaid/paid/all), `supplier_id`, `from`, `to`, `id` | `/purchases`, `/purchases/drafts`, `/purchases/{id}/payments` |
+| `find_purchases` | Kjøp og kostnader. Med `missing_receipt`: kjøp uten vedlegg, for eksempel kortkjøp fra superføring som mangler kvittering. | `status` (draft/unpaid/paid/all), `supplier_id`, `from`, `to`, `missing_receipt`, `id` | `/purchases`, `/purchases/drafts`, `/purchases/{id}/payments` |
 | `find_accounts` | Kontoplan, saldo på dato, bankkontoer og banksaldo | `query`, `number`, `type` (all/bank), `balance_date` | `/accounts`, `/accountBalances`, `/bankAccounts`, `/bankBalances` |
 | `find_journal_entries` | Bilag og posteringer, også per konto. Med `id`: transaksjon og vedleggsliste. | `from`, `to`, `account`, `id` | `/journalEntries`, `/transactions/{id}` |
 | `find_inbox` | Dokumenter i innboksen som venter på bokføring | `id` | `/inbox` |
@@ -327,9 +327,9 @@ Gatewayen (`explore_api` og `read_api`) dekker blant annet tilbud, ordrebekrefte
 | `save_contact` | Oppretter eller endrer kunde/leverandør, med kontaktpersoner. Fyller ut fra Enhetsregisteret på org.nr. og sjekker mot duplikat før opprettelse. | Reversibel | `id`, `org_number`, `name`, `email`, `phone`, `address`, `customer`, `supplier`, `contact_persons` | `/contacts`, `/contacts/{id}/contactPerson`, Enhetsregisteret |
 | `save_product` | Oppretter eller endrer et produkt | Reversibel | `id`, `name`, `unit_price` (kr), `vat_type`, `income_account`, `active` | `/products` |
 | `save_invoice_draft` | Oppretter eller endrer et utkast. Kan lages fra timer eller fra en ordrebekreftelse. | Reversibel | `id`, `type` (invoice/credit_note/offer), `customer_id`, `lines`, `issue_date`, `due_days`, `credited_invoice_id`, `from_time_entries`, `from_order_confirmation_id` | `/invoices/drafts`, `/creditNotes/drafts`, `/offers/drafts` |
-| `save_purchase_draft` | Oppretter eller endrer et kjøpsutkast, eventuelt fra et dokument i innboksen. Kobles til leverandør når org.nr. er kjent. | Reversibel | `id`, `supplier_id` eller `supplier_org_number`, `kind` (supplier/cash), `date`, `due_date`, `lines` (beskrivelse, beløp, MVA-kode, konto), `inbox_document_id`, `payment_account` | `/purchases/drafts` |
+| `save_purchase_draft` | Oppretter eller endrer et kjøpsutkast. Kobles til leverandør når org.nr. er kjent. | Reversibel | `id`, `supplier_id` eller `supplier_org_number`, `kind` (supplier/cash), `date`, `due_date`, `lines` (beskrivelse, beløp, MVA-kode, konto), `payment_account` | `/purchases/drafts` |
 | `save_sale_draft` | Oppretter eller endrer et utkast for annet salg (Vipps, kontant, nettbutikk) | Reversibel | `id`, `customer_id`, `date`, `lines`, `payment_account`, `paid` | `/sales/drafts` |
-| `create_upload_link` | Gir en engangslenke der brukeren laster opp kvittering eller bilag. Serveren legger filen på målet. | Reversibel | `target_type`, `target_id` | `/…/drafts/{id}/attachments` |
+| `create_upload_link` | Gir en engangslenke der brukeren laster opp kvittering eller bilag. Serveren legger filen på målet. Med `inbox_document_id` legges et dokument fra innboksen på målet med en gang, uten lenke. | Reversibel | `target_type`, `target_id`, `inbox_document_id` | `/…/drafts/{id}/attachments`, `/purchases/{id}/attachments`, `/sales/{id}/attachments`, `/inbox` |
 | `delete_draft` | Sletter et utkast av hvilken som helst type | Destruktiv | `type`, `id` | `DELETE /…/drafts/{id}` |
 | `finalize_draft` | Gjør et utkast endelig: faktura, kreditnota, tilbud, kjøp eller salg. Alt unntatt tilbud bokføres. | Destruktiv | `type`, `id` | `POST /…/drafts/{id}/create…` |
 | `register_payment` | Registrerer betaling på faktura, salg eller kjøp. Stopper hvis posten allerede er betalt. Ment for betalinger som ikke kommer via bankavstemmingen. | Destruktiv | `target_type`, `target_id`, `date`, `amount` (kr), `account` | `/sales/{id}/payments`, `/purchases/{id}/payments` |
@@ -338,7 +338,8 @@ Gatewayen (`explore_api` og `read_api`) dekker blant annet tilbud, ordrebekrefte
 
 Flyter:
 
-- **Kjøp:** brukeren legger kvitteringen i chatten (modellen leser bildet) eller i Fiken-innboksen → `save_purchase_draft` → `create_upload_link` hvis originalen ikke kom fra innboksen → `finalize_draft` etter bekreftelse.
+- **Kjøp:** brukeren legger kvitteringen i chatten (modellen leser bildet) eller i Fiken-innboksen → `save_purchase_draft` → `create_upload_link`, med `inbox_document_id` hvis originalen ligger i innboksen → `finalize_draft` etter bekreftelse.
+- **Kvittering til bokført kjøp** (kortkjøp fra superføring): `find_purchases` med `missing_receipt` → `create_upload_link` med `target_type: purchase`, med lenke eller `inbox_document_id`. Banklinjer som ikke er registrert ennå, finnes ikke i API-et (seksjon 9).
 - **Faktura:** `save_invoice_draft` → brukeren ser over → `finalize_draft` etter bekreftelse → `send_document` etter ny bekreftelse.
 
 ### Opplastingslenke
@@ -387,6 +388,7 @@ Avklar mot testforetaket underveis, og oppdater dette dokumentet med svarene.
   - Svar (spec): bare via kontoene. Ingen lønnsendepunkt.
 - [x] **Banklinjer:** Finnes uavstemte banktransaksjoner i APIet? Uten dem kan `bank_check` bare sammenligne saldoer og posteringer.
   - Svar (spec): nei. Bare `bankAccounts` og `bankBalances`. `bank_check` begrenses til saldoer og posteringer.
+  - Sjekket på nytt mot publisert spec 16.10.2026: fortsatt nei. Kortkjøp i superføring (f.eks. fra Folio) er usynlige for API-et til de er registrert som kjøp. Da finner `find_purchases` med `missing_receipt` dem. Innboksdokumenter har ikke beløp i API-et, bare navn, filnavn og dato.
 - [x] **Scopes:** Skiller Fiken OAuth mellom lese- og skrivetilgang?
   - Svar (spec): nei, `scopes: {}`. Tilgangsnivået håndheves bare hos oss.
 - [x] **PUT:** Erstatter `PUT` hele objektet? Gjelder kontakter, produkter og utkast.
@@ -402,6 +404,7 @@ Avklar mot testforetaket underveis, og oppdater dette dokumentet med svarene.
   - Spec: ja, `multipart/form-data` til `…/drafts/{id}/attachments`. Filnavn må slutte på .png, .jpeg, .jpg, .gif eller .pdf. I stedet for fil kan man sende `inboxDocumentId` eller `ehfDocumentId`, da trengs ingen opplasting. Maks størrelse står ikke i spec-en.
   - Målt 16.10.2026: vedlegg fra innboksen (`inboxDocumentId`) krever en multipart-body, også uten fil. Uten body svarer Fiken `415`. En liten PDF lastes opp i innboksen med `POST /inbox` (multipart). Maks størrelse er ikke målt.
   - Målt 16.10.2026: vedlegg på et bokført kjøp eller salg krever `attachToSale` eller `attachToPayment`, ellers `400` («Either attachToPayment or attachToSale must be specified»). Opplastingslenken sender `attachToSale=true`. Et vedlegg fjernes med `uuid`, ikke `identifier` (den gir `400`), og filen blir liggende i arkivet.
+  - Målt 16.10.2026: et dokument fra innboksen legges på et bokført kjøp med `inboxDocumentId` og `attachToSale=true` og en tom multipart-body (`201`). Dokumentet blir merket som brukt, og forblir brukt også når vedlegget fjernes igjen. Et brukt innboksdokument kan slettes (`204`).
 - [ ] **Låste perioder:** Avviser Fiken bilag og kjøp i en periode der MVA-meldingen er levert?
 - [ ] **Sending i test:** `send_document` testes bare mot egen e-post fra testforetaket.
 - [ ] **Gateway-listen:** Hvilke `GET`-operasjoner skal med i `read_api`, og hvordan trimmes svarene?
